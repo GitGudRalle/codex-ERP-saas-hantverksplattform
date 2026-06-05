@@ -5,8 +5,8 @@ export default function InvoiceDraftsPage() {
     <PagePlaceholder
       eyebrow="Fakturaunderlag"
       title="Granska innan faktura"
-      description="Här granskar admin eller ansvarig rapporterad tid, material, anteckningar och foton innan underlaget förs vidare till ekonomisystemet."
-      actions={["Granska tid", "Granska material", "Skapa underlag"]}
+      description="Fakturaunderlag väntar tills tid, material, anteckningar och foton finns på arbetsordern. MVP:t skickar inga riktiga fakturor."
+      actions={["Flagga saknad tid", "Flagga saknat material", "Skriv fakturatext"]}
     />
   );
 }

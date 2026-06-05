@@ -51,12 +51,25 @@ npm run build
 
 ## Current scope
 
-This setup includes only the initial app shell and placeholder pages:
+This setup includes the initial app shell and the first local MVP prototype:
 
 - Dashboard
 - Kunder
-- Arbetsordrar
-- Mina jobb
-- Fakturaunderlag
+- Arbetsordrar with a customer request to work order flow
+- Mina jobb with mobile-first status changes
+- Fakturaunderlag placeholder
+- Supabase migration SQL for the core company-scoped data model and RLS
 
-Auth, database schema, RLS policies, and real CRUD flows are intentionally not implemented yet.
+Auth UI, live Supabase CRUD, photo storage, and real invoice integrations are intentionally not implemented yet.
+
+## Database
+
+The first schema migration is available at:
+
+```text
+supabase/migrations/001_core_mvp_schema.sql
+```
+
+It includes the MVP tables, indexes, update triggers, and Row Level Security policies for company-scoped data. Review and run it in a Supabase project before connecting live app data.
+
+Security notes are documented in [docs/database-security.md](docs/database-security.md).
