@@ -11,6 +11,8 @@ Operational SaaS MVP for small Swedish electrical companies. The first goal is a
 
 ## Getting started
 
+For a fuller guide on running the project from a new computer or another device, see [docs/dev-hosting-from-github.md](docs/dev-hosting-from-github.md).
+
 1. Install dependencies:
 
 ```bash
