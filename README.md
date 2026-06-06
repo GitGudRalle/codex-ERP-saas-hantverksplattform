@@ -73,3 +73,5 @@ supabase/migrations/001_core_mvp_schema.sql
 It includes the MVP tables, indexes, update triggers, and Row Level Security policies for company-scoped data. Review and run it in a Supabase project before connecting live app data.
 
 Security notes are documented in [docs/database-security.md](docs/database-security.md).
+
+Supabase setup and recovery from partial migration attempts is documented in [docs/supabase-setup.md](docs/supabase-setup.md).
