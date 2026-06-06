@@ -43,3 +43,12 @@ export const invoiceDraftSchema = z.object({
 });
 
 export type InvoiceDraftForm = z.infer<typeof invoiceDraftSchema>;
+
+export const workOrderNoteSchema = z.object({
+  note: z
+    .string()
+    .min(2, "Skriv en kort anteckning")
+    .max(1000, "Anteckningen är för lång"),
+});
+
+export type WorkOrderNoteForm = z.infer<typeof workOrderNoteSchema>;

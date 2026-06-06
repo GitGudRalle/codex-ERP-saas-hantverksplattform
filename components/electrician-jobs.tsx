@@ -14,9 +14,14 @@ import type {
   ProfileRow,
   SiteRow,
   TimeEntryRow,
+  WorkOrderNoteRow,
   WorkOrderRow,
 } from "@/lib/supabase/types";
-import { materialEntrySchema, timeEntrySchema } from "@/lib/validation";
+import {
+  materialEntrySchema,
+  timeEntrySchema,
+  workOrderNoteSchema,
+} from "@/lib/validation";
 
 function formatScheduled(value: string | null) {
   if (!value) {
@@ -38,11 +43,13 @@ export function ElectricianJobs() {
   const [workOrders, setWorkOrders] = useState<WorkOrderRow[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntryRow[]>([]);
   const [materialEntries, setMaterialEntries] = useState<MaterialEntryRow[]>([]);
+  const [workOrderNotes, setWorkOrderNotes] = useState<WorkOrderNoteRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [savingTimeId, setSavingTimeId] = useState<string | null>(null);
   const [savingMaterialId, setSavingMaterialId] = useState<string | null>(null);
+  const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
 
   const loadJobs = useCallback(async () => {
     setIsLoading(true);
@@ -57,6 +64,7 @@ export function ElectricianJobs() {
       setWorkOrders([]);
       setTimeEntries([]);
       setMaterialEntries([]);
+      setWorkOrderNotes([]);
       setIsLoading(false);
       return;
     }
@@ -79,6 +87,7 @@ export function ElectricianJobs() {
       sitesResult,
       timeEntriesResult,
       materialEntriesResult,
+      notesResult,
     ] = await Promise.all([
       supabase.from("work_orders").select("*").order("scheduled_start", {
         ascending: true,
@@ -92,6 +101,9 @@ export function ElectricianJobs() {
       supabase.from("material_entries").select("*").order("created_at", {
         ascending: false,
       }),
+      supabase.from("work_order_notes").select("*").order("created_at", {
+        ascending: false,
+      }),
     ]);
 
     if (
@@ -99,7 +111,8 @@ export function ElectricianJobs() {
       customersResult.error ||
       sitesResult.error ||
       timeEntriesResult.error ||
-      materialEntriesResult.error
+      materialEntriesResult.error ||
+      notesResult.error
     ) {
       setError("Kunde inte hämta tilldelade jobb och rapporter från Supabase.");
       setIsLoading(false);
@@ -112,6 +125,7 @@ export function ElectricianJobs() {
     setSites((sitesResult.data ?? []) as SiteRow[]);
     setTimeEntries((timeEntriesResult.data ?? []) as TimeEntryRow[]);
     setMaterialEntries((materialEntriesResult.data ?? []) as MaterialEntryRow[]);
+    setWorkOrderNotes((notesResult.data ?? []) as WorkOrderNoteRow[]);
     setIsLoading(false);
   }, [supabase]);
 
@@ -228,6 +242,46 @@ export function ElectricianJobs() {
     return true;
   }
 
+  async function addWorkOrderNote(workOrder: WorkOrderRow, formData: FormData) {
+    if (!profile) {
+      setError("Logga in för att skriva anteckning.");
+      return false;
+    }
+
+    const result = workOrderNoteSchema.safeParse({
+      note: formData.get("note"),
+    });
+
+    if (!result.success) {
+      setError(result.error.issues[0]?.message ?? "Kontrollera anteckningen.");
+      return false;
+    }
+
+    setSavingNoteId(workOrder.id);
+    setError(null);
+
+    const { error: insertError } = await supabase
+      .from("work_order_notes")
+      .insert({
+        company_id: workOrder.company_id,
+        work_order_id: workOrder.id,
+        author_id: profile.id,
+        note: result.data.note.trim(),
+      });
+
+    if (insertError) {
+      setError(
+        "Kunde inte spara anteckning. Kontrollera att jobbet är tilldelat dig.",
+      );
+      setSavingNoteId(null);
+      return false;
+    }
+
+    await loadJobs();
+    setSavingNoteId(null);
+    return true;
+  }
+
   function getCustomer(customerId: string) {
     return customers.find((customer) => customer.id === customerId);
   }
@@ -242,6 +296,10 @@ export function ElectricianJobs() {
 
   function getMaterialEntries(workOrderId: string) {
     return materialEntries.filter((entry) => entry.work_order_id === workOrderId);
+  }
+
+  function getWorkOrderNotes(workOrderId: string) {
+    return workOrderNotes.filter((entry) => entry.work_order_id === workOrderId);
   }
 
   return (
@@ -288,6 +346,7 @@ export function ElectricianJobs() {
               const site = getSite(job.site_id);
               const jobTimeEntries = getTimeEntries(job.id);
               const jobMaterialEntries = getMaterialEntries(job.id);
+              const jobNotes = getWorkOrderNotes(job.id);
               const totalHours = jobTimeEntries.reduce(
                 (sum, entry) => sum + Number(entry.hours),
                 0,
@@ -309,6 +368,71 @@ export function ElectricianJobs() {
                         {formatScheduled(job.scheduled_start)}
                       </span>
                     </div>
+
+                    <section className="rounded-lg border border-line bg-field p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-semibold text-ink">
+                          Anteckningar
+                        </h3>
+                        <span className="text-sm font-medium text-slate-600">
+                          {jobNotes.length} st
+                        </span>
+                      </div>
+                      <form
+                        className="mt-3 grid gap-2"
+                        onSubmit={async (event) => {
+                          event.preventDefault();
+                          const wasSaved = await addWorkOrderNote(
+                            job,
+                            new FormData(event.currentTarget),
+                          );
+                          if (wasSaved) {
+                            event.currentTarget.reset();
+                          }
+                        }}
+                      >
+                        <label>
+                          <span className="sr-only">Anteckning</span>
+                          <textarea
+                            className="min-h-24 w-full rounded-lg border border-line px-3 py-2 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                            name="note"
+                            placeholder="Skriv kort vad kunden sa, vad som saknas eller vad nästa montör behöver veta."
+                          />
+                        </label>
+                        <button
+                          className="min-h-11 rounded-lg bg-action px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={savingNoteId === job.id}
+                        >
+                          {savingNoteId === job.id
+                            ? "Sparar"
+                            : "Spara anteckning"}
+                        </button>
+                      </form>
+                      <div className="mt-3 space-y-2">
+                        {jobNotes.length === 0 ? (
+                          <p className="text-sm text-slate-600">
+                            Inga anteckningar ännu.
+                          </p>
+                        ) : (
+                          jobNotes.map((entry) => (
+                            <div
+                              className="rounded-lg border border-line bg-white px-3 py-2 text-sm"
+                              key={entry.id}
+                            >
+                              <p className="text-slate-700">{entry.note}</p>
+                              <p className="mt-2 text-xs font-medium text-slate-500">
+                                {new Intl.DateTimeFormat("sv-SE", {
+                                  day: "numeric",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }).format(new Date(entry.created_at))}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </section>
 
                     <div>
                       <p className="text-sm font-medium text-slate-500">
