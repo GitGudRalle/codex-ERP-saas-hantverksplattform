@@ -1,35 +1,130 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  electricians,
-  initialCustomers,
-  initialSites,
-  initialWorkOrders,
-} from "@/lib/demo-data";
-import type { Customer, Site, WorkOrder, WorkOrderPriority } from "@/lib/domain";
-import { priorityLabels } from "@/lib/domain";
-import { customerRequestSchema } from "@/lib/validation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
+import { priorityLabels, type WorkOrderPriority } from "@/lib/domain";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import type {
+  CustomerRow,
+  ProfileRow,
+  SiteRow,
+  WorkOrderRow,
+} from "@/lib/supabase/types";
+import { customerRequestSchema } from "@/lib/validation";
 
 function getFormValue(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
 }
 
+function formatScheduled(value: string | null) {
+  if (!value) {
+    return "Ej bokad";
+  }
+
+  return new Intl.DateTimeFormat("sv-SE", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 export function CustomerWorkOrderFlow() {
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
-  const [sites, setSites] = useState<Site[]>(initialSites);
-  const [workOrders, setWorkOrders] = useState<WorkOrder[]>(initialWorkOrders);
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const [electricians, setElectricians] = useState<ProfileRow[]>([]);
+  const [customers, setCustomers] = useState<CustomerRow[]>([]);
+  const [sites, setSites] = useState<SiteRow[]>([]);
+  const [workOrders, setWorkOrders] = useState<WorkOrderRow[]>([]);
   const [message, setMessage] = useState("Redo att registrera nästa kundärende.");
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const canManage =
+    profile?.role === "admin" || profile?.role === "manager";
 
   const unassignedWorkOrders = useMemo(
-    () => workOrders.filter((workOrder) => !workOrder.assignedTo),
+    () => workOrders.filter((workOrder) => !workOrder.assigned_to),
     [workOrders],
   );
 
-  function createRequest(formData: FormData) {
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    const { data: userData } = await supabase.auth.getUser();
+
+    if (!userData.user) {
+      setProfile(null);
+      setElectricians([]);
+      setCustomers([]);
+      setSites([]);
+      setWorkOrders([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const profileResult = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userData.user.id)
+      .single();
+
+    if (profileResult.error) {
+      setError("Din användare saknar profil i Supabase.");
+      setIsLoading(false);
+      return;
+    }
+
+    const [profilesResult, customersResult, sitesResult, workOrdersResult] =
+      await Promise.all([
+        supabase.from("profiles").select("*").order("full_name"),
+        supabase.from("customers").select("*").order("created_at", {
+          ascending: false,
+        }),
+        supabase.from("sites").select("*").order("created_at", {
+          ascending: false,
+        }),
+        supabase.from("work_orders").select("*").order("created_at", {
+          ascending: false,
+        }),
+      ]);
+
+    if (
+      profilesResult.error ||
+      customersResult.error ||
+      sitesResult.error ||
+      workOrdersResult.error
+    ) {
+      setError("Kunde inte hämta arbetsdata från Supabase.");
+      setIsLoading(false);
+      return;
+    }
+
+    setProfile(profileResult.data as ProfileRow);
+    setElectricians(
+      ((profilesResult.data ?? []) as ProfileRow[]).filter(
+        (item) => item.role === "electrician",
+      ),
+    );
+    setCustomers((customersResult.data ?? []) as CustomerRow[]);
+    setSites((sitesResult.data ?? []) as SiteRow[]);
+    setWorkOrders((workOrdersResult.data ?? []) as WorkOrderRow[]);
+    setIsLoading(false);
+  }, [supabase]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  async function createRequest(formData: FormData) {
+    if (!profile || !canManage) {
+      setError("Du behöver vara admin eller manager för att skapa arbetsorder.");
+      return false;
+    }
+
     const result = customerRequestSchema.safeParse({
       customerName: getFormValue(formData, "customerName"),
       phone: getFormValue(formData, "phone"),
@@ -45,60 +140,88 @@ export function CustomerWorkOrderFlow() {
       return false;
     }
 
-    const now = Date.now().toString();
-    const customerId = `kund-${now}`;
-    const siteId = `plats-${now}`;
-    const workOrderId = `ao-${workOrders.length + 1001}`;
-
-    const customer: Customer = {
-      id: customerId,
-      name: result.data.customerName,
-      phone: result.data.phone,
-      type: "private",
-    };
-
-    const site: Site = {
-      id: siteId,
-      customerId,
-      address: result.data.address,
-      city: result.data.city,
-    };
-
-    const workOrder: WorkOrder = {
-      id: workOrderId,
-      customerId,
-      siteId,
-      title: result.data.title,
-      description: result.data.description,
-      status: "new",
-      priority: result.data.priority as WorkOrderPriority,
-      scheduledLabel: "Ej bokad",
-    };
-
-    setCustomers((current) => [customer, ...current]);
-    setSites((current) => [site, ...current]);
-    setWorkOrders((current) => [workOrder, ...current]);
+    setIsSaving(true);
     setError(null);
-    setMessage(`Skapade kund och arbetsorder ${workOrderId}.`);
+
+    const customerResult = await supabase
+      .from("customers")
+      .insert({
+        company_id: profile.company_id,
+        name: result.data.customerName,
+        phone: result.data.phone,
+        customer_type: "private",
+      })
+      .select("*")
+      .single();
+
+    if (customerResult.error) {
+      setError("Kunde inte skapa kund.");
+      setIsSaving(false);
+      return false;
+    }
+
+    const siteResult = await supabase
+      .from("sites")
+      .insert({
+        company_id: profile.company_id,
+        customer_id: customerResult.data.id,
+        address: result.data.address,
+        city: result.data.city,
+      })
+      .select("*")
+      .single();
+
+    if (siteResult.error) {
+      setError("Kunde inte skapa arbetsplats.");
+      setIsSaving(false);
+      return false;
+    }
+
+    const workOrderResult = await supabase
+      .from("work_orders")
+      .insert({
+        company_id: profile.company_id,
+        customer_id: customerResult.data.id,
+        site_id: siteResult.data.id,
+        title: result.data.title,
+        description: result.data.description,
+        status: "new",
+        priority: result.data.priority as WorkOrderPriority,
+      })
+      .select("*")
+      .single();
+
+    if (workOrderResult.error) {
+      setError("Kunde inte skapa arbetsorder.");
+      setIsSaving(false);
+      return false;
+    }
+
+    setMessage(`Skapade arbetsorder ${workOrderResult.data.title}.`);
+    setIsSaving(false);
+    await loadData();
     return true;
   }
 
-  function assignWorkOrder(workOrderId: string, electricianId: string) {
+  async function assignWorkOrder(workOrderId: string, electricianId: string) {
     const electrician = electricians.find((item) => item.id === electricianId);
 
-    setWorkOrders((current) =>
-      current.map((workOrder) =>
-        workOrder.id === workOrderId
-          ? {
-              ...workOrder,
-              assignedTo: electricianId,
-              status: "assigned",
-              scheduledLabel: "Idag",
-            }
-          : workOrder,
-      ),
-    );
-    setMessage(`Arbetsorder ${workOrderId} tilldelades ${electrician?.name}.`);
+    const { error: updateError } = await supabase
+      .from("work_orders")
+      .update({
+        assigned_to: electricianId,
+        status: "assigned",
+        scheduled_start: new Date().toISOString(),
+      })
+      .eq("id", workOrderId);
+
+    if (updateError) {
+      setError("Kunde inte tilldela arbetsorder.");
+      return;
+    }
+
+    setMessage(`Arbetsorder tilldelades ${electrician?.full_name}.`);
+    await loadData();
   }
 
   function getCustomer(customerId: string) {
@@ -109,7 +232,7 @@ export function CustomerWorkOrderFlow() {
     return sites.find((site) => site.id === siteId);
   }
 
-  function getElectrician(electricianId?: string) {
+  function getElectrician(electricianId?: string | null) {
     return electricians.find((electrician) => electrician.id === electricianId);
   }
 
@@ -121,17 +244,30 @@ export function CustomerWorkOrderFlow() {
           Registrera ärende snabbt
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-          Första MVP-flödet är medvetet kort: fånga kund, adress, problem och
-          skapa en arbetsorder som kan tilldelas montör.
+          Detta flöde skriver nu till Supabase. RLS kräver att du är inloggad
+          som admin eller manager för att skapa och tilldela arbetsordrar.
         </p>
       </section>
+
+      {!profile ? (
+        <section className="rounded-lg border border-line bg-white p-5">
+          <h2 className="text-lg font-semibold text-ink">
+            Logga in för att hantera arbetsordrar
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            När du loggar in används din profil och roll från Supabase.
+          </p>
+        </section>
+      ) : null}
 
       <section className="grid gap-5 lg:grid-cols-[minmax(0,420px)_1fr]">
         <form
           className="rounded-lg border border-line bg-white p-5"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
-            const wasCreated = createRequest(new FormData(event.currentTarget));
+            const wasCreated = await createRequest(
+              new FormData(event.currentTarget),
+            );
             if (wasCreated) {
               event.currentTarget.reset();
             }
@@ -143,6 +279,7 @@ export function CustomerWorkOrderFlow() {
               <span className="text-sm font-medium text-slate-700">Kund</span>
               <input
                 className="mt-1 min-h-12 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                disabled={!canManage || isSaving}
                 name="customerName"
                 placeholder="Anna Karlsson"
               />
@@ -151,6 +288,7 @@ export function CustomerWorkOrderFlow() {
               <span className="text-sm font-medium text-slate-700">Telefon</span>
               <input
                 className="mt-1 min-h-12 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                disabled={!canManage || isSaving}
                 name="phone"
                 placeholder="070-123 45 67"
                 type="tel"
@@ -163,6 +301,7 @@ export function CustomerWorkOrderFlow() {
                 </span>
                 <input
                   className="mt-1 min-h-12 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                  disabled={!canManage || isSaving}
                   name="address"
                   placeholder="Björkgatan 12"
                 />
@@ -171,6 +310,7 @@ export function CustomerWorkOrderFlow() {
                 <span className="text-sm font-medium text-slate-700">Ort</span>
                 <input
                   className="mt-1 min-h-12 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                  disabled={!canManage || isSaving}
                   name="city"
                   placeholder="Skövde"
                 />
@@ -180,6 +320,7 @@ export function CustomerWorkOrderFlow() {
               <span className="text-sm font-medium text-slate-700">Rubrik</span>
               <input
                 className="mt-1 min-h-12 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                disabled={!canManage || isSaving}
                 name="title"
                 placeholder="Felsökning uttag"
               />
@@ -190,6 +331,7 @@ export function CustomerWorkOrderFlow() {
               </span>
               <textarea
                 className="mt-1 min-h-28 w-full rounded-lg border border-line px-3 py-2 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                disabled={!canManage || isSaving}
                 name="description"
                 placeholder="Vad behöver elektrikern veta?"
               />
@@ -201,6 +343,7 @@ export function CustomerWorkOrderFlow() {
               <select
                 className="mt-1 min-h-12 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
                 defaultValue="normal"
+                disabled={!canManage || isSaving}
                 name="priority"
               >
                 {Object.entries(priorityLabels).map(([value, label]) => (
@@ -218,15 +361,20 @@ export function CustomerWorkOrderFlow() {
             </p>
           ) : null}
 
-          <button className="mt-5 min-h-12 w-full rounded-lg bg-action px-4 text-base font-semibold text-white hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-action focus:ring-offset-2">
-            Skapa kund och arbetsorder
+          <button
+            className="mt-5 min-h-12 w-full rounded-lg bg-action px-4 text-base font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={!canManage || isSaving}
+          >
+            {isSaving ? "Sparar" : "Skapa kund och arbetsorder"}
           </button>
         </form>
 
         <div className="space-y-5">
           <section className="rounded-lg border border-line bg-white p-5">
             <h2 className="text-lg font-semibold text-ink">Nästa åtgärd</h2>
-            <p className="mt-2 text-sm text-slate-600">{message}</p>
+            <p className="mt-2 text-sm text-slate-600">
+              {isLoading ? "Hämtar från Supabase..." : message}
+            </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg border border-line bg-field p-3">
                 <p className="text-sm text-slate-600">Kunder</p>
@@ -251,9 +399,9 @@ export function CustomerWorkOrderFlow() {
             <h2 className="text-lg font-semibold text-ink">Arbetsordrar</h2>
             <div className="mt-4 space-y-3">
               {workOrders.map((workOrder) => {
-                const customer = getCustomer(workOrder.customerId);
-                const site = getSite(workOrder.siteId);
-                const electrician = getElectrician(workOrder.assignedTo);
+                const customer = getCustomer(workOrder.customer_id);
+                const site = getSite(workOrder.site_id);
+                const electrician = getElectrician(workOrder.assigned_to);
 
                 return (
                   <article
@@ -263,7 +411,7 @@ export function CustomerWorkOrderFlow() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-500">
-                          {workOrder.id}
+                          {formatScheduled(workOrder.scheduled_start)}
                         </p>
                         <h3 className="mt-1 text-lg font-semibold text-ink">
                           {workOrder.title}
@@ -282,9 +430,9 @@ export function CustomerWorkOrderFlow() {
                     </p>
                     <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm font-medium text-slate-700">
-                        Montör: {electrician?.name ?? "Inte tilldelad"}
+                        Montör: {electrician?.full_name ?? "Inte tilldelad"}
                       </p>
-                      {!workOrder.assignedTo ? (
+                      {!workOrder.assigned_to && canManage ? (
                         <div className="grid gap-2 sm:grid-cols-3">
                           {electricians.map((item) => (
                             <button
@@ -293,7 +441,7 @@ export function CustomerWorkOrderFlow() {
                               onClick={() => assignWorkOrder(workOrder.id, item.id)}
                               type="button"
                             >
-                              Tilldela {item.name.split(" ")[0]}
+                              Tilldela {item.full_name.split(" ")[0]}
                             </button>
                           ))}
                         </div>

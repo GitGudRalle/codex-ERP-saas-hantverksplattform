@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { AuthStatus } from "@/components/auth-status";
 import { navigationItems } from "@/lib/navigation";
 
 type AppShellProps = {
@@ -16,9 +17,7 @@ export function AppShell({ children }: AppShellProps) {
               <p className="text-lg font-semibold text-ink">Elfirma</p>
               <p className="text-sm text-slate-500">Ljungqvist Elservice AB</p>
             </Link>
-            <div className="rounded-full border border-line px-3 py-1 text-sm font-medium text-slate-700">
-              MVP
-            </div>
+            <AuthStatus />
           </div>
           <nav aria-label="Huvudnavigation">
             <ul className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
