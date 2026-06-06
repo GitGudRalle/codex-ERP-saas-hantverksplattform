@@ -2,32 +2,29 @@
 
 Use this file when a task affects more than 3 files, changes database schema, changes auth/security, or introduces a new product module.
 
-## Active plan: Core MVP foundation - data model, work order flow, and mobile jobs
+## Active plan: RLS hardening and completed-job review
 
 ## Goal
 
-Add the first practical MVP foundation: company-scoped database schema, a simple customer-to-work-order flow, and a mobile-first electrician jobs view.
+Harden the current Supabase access model and add the first admin review step between completed field work and invoice basis.
 
 ## User story
 
-As a small electrical company, I want to register a customer request, turn it into an assigned work order, and let the electrician update job status from mobile, so that work does not get lost before invoicing.
+As an admin or manager, I want to review completed work orders and see missing time/material before marking them ready for invoicing, so that invoice drafts are based on complete field data.
 
 ## Scope
 
 Included:
-- Supabase migration SQL for core MVP entities
-- RLS policies and indexes for company-scoped data
-- Shared TypeScript domain model and status labels
-- Dashboard update reflecting the first operational workflow
-- Customer/work-order page with a simple local MVP workflow
-- Mobile-first "Mina jobb" status view
+- RLS helper functions moved out of the exposed public API schema
+- RLS policies scoped to authenticated users and optimized for auth helper calls
+- Admin/manager review section for completed work orders
+- Missing time/material flags before invoice readiness
 
 Excluded:
-- Full authentication UI
-- Live Supabase CRUD integration
-- File upload/storage for photos
-- Time/material reporting persistence
-- Invoice integrations
+- Full invoice draft generation
+- Fortnox/Visma export
+- Photo storage changes
+- Advanced reporting
 
 ## Files likely affected
 
@@ -40,28 +37,27 @@ Excluded:
 
 ## Data model changes
 
-- Add company-scoped tables for profiles, customers, sites, work_orders, time_entries, material_entries, work_order_notes, work_order_photos, and invoice_drafts.
-- Add enums for roles, work order statuses, priorities, and invoice draft statuses.
+- No new business tables.
+- Add private database helper schema for RLS functions.
 
 ## UI changes
 
-- Replace broad placeholders with practical MVP screens for customer/work order flow and electrician status handling.
-- Keep Swedish labels and mobile-first touch targets.
+- Add a completed-job review section to the work order page.
+- Keep review cards readable on mobile and useful on desktop.
 
 ## Security/RLS considerations
 
-- Every business table is company-scoped.
-- Admin/manager policies can manage all company data.
-- Electricians can only read assigned work orders and related records.
-- Live UI data access must not be added until auth/session context is wired.
+- Helper functions should not be callable as public RPC endpoints.
+- Policies should apply to authenticated users only.
+- Electricians must remain limited to assigned work orders and related records.
 
 ## Implementation steps
 
-1. Add migration SQL with tables, indexes, triggers, and RLS policies.
-2. Add shared domain constants for statuses, priorities, and seeded MVP demo data.
-3. Build customer/work-order page as a local interactive workflow.
-4. Build mobile-first electrician jobs page with status transitions.
-5. Update README with current development status and validation notes.
+1. Add and apply RLS hardening migration.
+2. Update database security notes.
+3. Extend work order data loading with time and material reports.
+4. Add completed-job review cards and mark-ready action.
+5. Validate lint, typecheck, build, and basic browser smoke.
 
 ## Validation
 
@@ -71,13 +67,14 @@ Commands to run:
 - npm test, if available
 
 Manual checks:
-- Confirm work order statuses use the approved Swedish labels.
-- Confirm mobile jobs view exposes phone, address, status, and primary actions.
+- Confirm admin/manager can see completed jobs and mark them ready for invoicing.
+- Confirm missing time/material is visible before the action.
+- Confirm electrician access still relies on assigned work orders.
 
 ## Risks
 
-- RLS SQL must be reviewed against a real Supabase project before production data is added.
-- Local UI state is temporary and must be replaced by authenticated Supabase reads/writes.
+- Moving helpers to a private schema must not break app reads/writes.
+- The review screen is a first pass and does not create invoice drafts yet.
 
 ## Plan template
 

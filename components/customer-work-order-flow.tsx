@@ -6,8 +6,10 @@ import { priorityLabels, type WorkOrderPriority } from "@/lib/domain";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   CustomerRow,
+  MaterialEntryRow,
   ProfileRow,
   SiteRow,
+  TimeEntryRow,
   WorkOrderRow,
 } from "@/lib/supabase/types";
 import { customerRequestSchema } from "@/lib/validation";
@@ -37,16 +39,24 @@ export function CustomerWorkOrderFlow() {
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [sites, setSites] = useState<SiteRow[]>([]);
   const [workOrders, setWorkOrders] = useState<WorkOrderRow[]>([]);
+  const [timeEntries, setTimeEntries] = useState<TimeEntryRow[]>([]);
+  const [materialEntries, setMaterialEntries] = useState<MaterialEntryRow[]>([]);
   const [message, setMessage] = useState("Redo att registrera nästa kundärende.");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   const canManage =
     profile?.role === "admin" || profile?.role === "manager";
 
   const unassignedWorkOrders = useMemo(
     () => workOrders.filter((workOrder) => !workOrder.assigned_to),
+    [workOrders],
+  );
+
+  const completedWorkOrders = useMemo(
+    () => workOrders.filter((workOrder) => workOrder.status === "completed"),
     [workOrders],
   );
 
@@ -62,6 +72,8 @@ export function CustomerWorkOrderFlow() {
       setCustomers([]);
       setSites([]);
       setWorkOrders([]);
+      setTimeEntries([]);
+      setMaterialEntries([]);
       setIsLoading(false);
       return;
     }
@@ -78,8 +90,14 @@ export function CustomerWorkOrderFlow() {
       return;
     }
 
-    const [profilesResult, customersResult, sitesResult, workOrdersResult] =
-      await Promise.all([
+    const [
+      profilesResult,
+      customersResult,
+      sitesResult,
+      workOrdersResult,
+      timeEntriesResult,
+      materialEntriesResult,
+    ] = await Promise.all([
         supabase.from("profiles").select("*").order("full_name"),
         supabase.from("customers").select("*").order("created_at", {
           ascending: false,
@@ -90,13 +108,21 @@ export function CustomerWorkOrderFlow() {
         supabase.from("work_orders").select("*").order("created_at", {
           ascending: false,
         }),
+        supabase.from("time_entries").select("*").order("created_at", {
+          ascending: false,
+        }),
+        supabase.from("material_entries").select("*").order("created_at", {
+          ascending: false,
+        }),
       ]);
 
     if (
       profilesResult.error ||
       customersResult.error ||
       sitesResult.error ||
-      workOrdersResult.error
+      workOrdersResult.error ||
+      timeEntriesResult.error ||
+      materialEntriesResult.error
     ) {
       setError("Kunde inte hämta arbetsdata från Supabase.");
       setIsLoading(false);
@@ -112,6 +138,8 @@ export function CustomerWorkOrderFlow() {
     setCustomers((customersResult.data ?? []) as CustomerRow[]);
     setSites((sitesResult.data ?? []) as SiteRow[]);
     setWorkOrders((workOrdersResult.data ?? []) as WorkOrderRow[]);
+    setTimeEntries((timeEntriesResult.data ?? []) as TimeEntryRow[]);
+    setMaterialEntries((materialEntriesResult.data ?? []) as MaterialEntryRow[]);
     setIsLoading(false);
   }, [supabase]);
 
@@ -224,6 +252,28 @@ export function CustomerWorkOrderFlow() {
     await loadData();
   }
 
+  async function markReadyForInvoice(workOrderId: string) {
+    setReviewingId(workOrderId);
+    setError(null);
+
+    const { error: updateError } = await supabase
+      .from("work_orders")
+      .update({
+        status: "ready_for_invoice",
+      })
+      .eq("id", workOrderId);
+
+    if (updateError) {
+      setError("Kunde inte markera arbetsordern klar för fakturering.");
+      setReviewingId(null);
+      return;
+    }
+
+    setMessage("Arbetsordern är klar för fakturering.");
+    await loadData();
+    setReviewingId(null);
+  }
+
   function getCustomer(customerId: string) {
     return customers.find((customer) => customer.id === customerId);
   }
@@ -234,6 +284,14 @@ export function CustomerWorkOrderFlow() {
 
   function getElectrician(electricianId?: string | null) {
     return electricians.find((electrician) => electrician.id === electricianId);
+  }
+
+  function getTimeEntries(workOrderId: string) {
+    return timeEntries.filter((entry) => entry.work_order_id === workOrderId);
+  }
+
+  function getMaterialEntries(workOrderId: string) {
+    return materialEntries.filter((entry) => entry.work_order_id === workOrderId);
   }
 
   return (
@@ -394,6 +452,136 @@ export function CustomerWorkOrderFlow() {
               </div>
             </div>
           </section>
+
+          {canManage ? (
+            <section className="rounded-lg border border-line bg-white p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-ink">
+                    Granska klara jobb
+                  </h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    Kontrollera tid och material innan arbetsordern går vidare
+                    till fakturaunderlag.
+                  </p>
+                </div>
+                <span className="inline-flex min-h-8 items-center rounded-full border border-line px-3 text-sm font-medium text-slate-700">
+                  {completedWorkOrders.length} att granska
+                </span>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {completedWorkOrders.length === 0 ? (
+                  <p className="rounded-lg border border-line bg-field px-3 py-3 text-sm text-slate-600">
+                    Inga klara arbetsordrar väntar på granskning.
+                  </p>
+                ) : (
+                  completedWorkOrders.map((workOrder) => {
+                    const customer = getCustomer(workOrder.customer_id);
+                    const site = getSite(workOrder.site_id);
+                    const electrician = getElectrician(workOrder.assigned_to);
+                    const jobTimeEntries = getTimeEntries(workOrder.id);
+                    const jobMaterialEntries = getMaterialEntries(workOrder.id);
+                    const totalHours = jobTimeEntries.reduce(
+                      (sum, entry) => sum + Number(entry.hours),
+                      0,
+                    );
+                    const missingTime = totalHours <= 0;
+                    const missingMaterial = jobMaterialEntries.length === 0;
+
+                    return (
+                      <article
+                        className="rounded-lg border border-line bg-field p-4"
+                        key={workOrder.id}
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-slate-500">
+                              {customer?.name} · {site?.address}, {site?.city}
+                            </p>
+                            <h3 className="mt-1 text-lg font-semibold text-ink">
+                              {workOrder.title}
+                            </h3>
+                            <p className="mt-1 text-sm text-slate-600">
+                              Montör:{" "}
+                              {electrician?.full_name ?? "Inte tilldelad"}
+                            </p>
+                          </div>
+                          <StatusBadge status={workOrder.status} />
+                        </div>
+
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          <div className="rounded-lg border border-line bg-white p-3">
+                            <p className="text-sm text-slate-600">Tid</p>
+                            <p className="mt-1 text-xl font-semibold text-ink">
+                              {totalHours.toLocaleString("sv-SE")} h
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-line bg-white p-3">
+                            <p className="text-sm text-slate-600">Material</p>
+                            <p className="mt-1 text-xl font-semibold text-ink">
+                              {jobMaterialEntries.length} rader
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-line bg-white p-3">
+                            <p className="text-sm text-slate-600">Kontroll</p>
+                            <p className="mt-1 text-sm font-semibold text-ink">
+                              {missingTime || missingMaterial
+                                ? "Behöver kollas"
+                                : "Ser komplett ut"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {missingTime || missingMaterial ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {missingTime ? (
+                              <span className="inline-flex min-h-8 items-center rounded-full border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-900">
+                                Saknar rapporterad tid
+                              </span>
+                            ) : null}
+                            {missingMaterial ? (
+                              <span className="inline-flex min-h-8 items-center rounded-full border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-900">
+                                Inget material rapporterat
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        {jobMaterialEntries.length > 0 ? (
+                          <div className="mt-3 space-y-2">
+                            {jobMaterialEntries.slice(0, 3).map((entry) => (
+                              <p
+                                className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-slate-700"
+                                key={entry.id}
+                              >
+                                <span className="font-semibold text-ink">
+                                  {entry.name}
+                                </span>{" "}
+                                {Number(entry.quantity).toLocaleString("sv-SE")}{" "}
+                                {entry.unit}
+                              </p>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        <button
+                          className="mt-4 min-h-11 w-full rounded-lg bg-action px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                          disabled={reviewingId === workOrder.id}
+                          onClick={() => markReadyForInvoice(workOrder.id)}
+                          type="button"
+                        >
+                          {reviewingId === workOrder.id
+                            ? "Markerar"
+                            : "Markera klar för fakturering"}
+                        </button>
+                      </article>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+          ) : null}
 
           <section className="rounded-lg border border-line bg-white p-5">
             <h2 className="text-lg font-semibold text-ink">Arbetsordrar</h2>
