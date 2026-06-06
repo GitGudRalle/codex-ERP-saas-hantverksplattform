@@ -56,6 +56,7 @@ This setup includes the initial app shell and the first live Supabase-backed MVP
 - Dashboard
 - Kunder
 - Arbetsordrar with customer request to work order flow, assignment, and completed-job review
+- Work order detail page with customer, site, reporting, documentation, and invoice summary
 - Mina jobb with mobile-first status changes, time reporting, material reporting, and notes
 - Fakturaunderlag with review of ready work orders and saved invoice text
 - Role-aware navigation and an electrician-focused start card

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
 import { priorityLabels, type WorkOrderPriority } from "@/lib/domain";
@@ -506,6 +507,12 @@ export function CustomerWorkOrderFlow() {
                               Montör:{" "}
                               {electrician?.full_name ?? "Inte tilldelad"}
                             </p>
+                            <Link
+                              className="mt-3 inline-flex min-h-10 items-center rounded-lg border border-line bg-white px-3 text-sm font-semibold text-ink hover:border-action"
+                              href={`/work-orders/${workOrder.id}`}
+                            >
+                              Öppna detalj
+                            </Link>
                           </div>
                           <StatusBadge status={workOrder.status} />
                         </div>
@@ -607,6 +614,12 @@ export function CustomerWorkOrderFlow() {
                         <p className="mt-1 text-sm text-slate-600">
                           {customer?.name} · {site?.address}, {site?.city}
                         </p>
+                        <Link
+                          className="mt-3 inline-flex min-h-10 items-center rounded-lg border border-line bg-white px-3 text-sm font-semibold text-ink hover:border-action"
+                          href={`/work-orders/${workOrder.id}`}
+                        >
+                          Öppna detalj
+                        </Link>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <StatusBadge status={workOrder.status} />

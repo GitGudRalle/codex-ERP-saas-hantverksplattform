@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
 import {
@@ -444,6 +445,12 @@ export function ElectricianJobs() {
                       <p className="mt-2 text-sm leading-6 text-slate-700">
                         {job.description}
                       </p>
+                      <Link
+                        className="mt-3 inline-flex min-h-10 items-center rounded-lg border border-line bg-white px-3 text-sm font-semibold text-ink hover:border-action"
+                        href={`/work-orders/${job.id}`}
+                      >
+                        Öppna detalj
+                      </Link>
                     </div>
 
                     <div className="rounded-lg border border-line bg-field p-3">

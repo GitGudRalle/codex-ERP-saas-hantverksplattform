@@ -52,6 +52,16 @@ export type WorkOrderNoteRow = {
   created_at: string;
 };
 
+export type WorkOrderPhotoRow = {
+  id: string;
+  company_id: string;
+  work_order_id: string;
+  uploaded_by: string;
+  storage_path: string;
+  caption: string | null;
+  created_at: string;
+};
+
 export type TimeEntryRow = {
   id: string;
   company_id: string;
