@@ -167,6 +167,7 @@ create index if not exists invoice_drafts_company_status_idx on public.invoice_d
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at = now();

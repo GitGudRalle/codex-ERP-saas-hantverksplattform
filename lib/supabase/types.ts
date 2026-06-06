@@ -51,3 +51,25 @@ export type WorkOrderNoteRow = {
   note: string;
   created_at: string;
 };
+
+export type TimeEntryRow = {
+  id: string;
+  company_id: string;
+  work_order_id: string;
+  electrician_id: string;
+  entry_date: string;
+  hours: number;
+  description: string | null;
+  created_at: string;
+};
+
+export type MaterialEntryRow = {
+  id: string;
+  company_id: string;
+  work_order_id: string;
+  added_by: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  created_at: string;
+};

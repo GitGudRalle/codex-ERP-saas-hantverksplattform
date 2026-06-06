@@ -2,14 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
-import { nextFieldStatuses, workOrderStatusLabels, type WorkOrderStatus } from "@/lib/domain";
+import {
+  nextFieldStatuses,
+  workOrderStatusLabels,
+  type WorkOrderStatus,
+} from "@/lib/domain";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   CustomerRow,
+  MaterialEntryRow,
   ProfileRow,
   SiteRow,
+  TimeEntryRow,
   WorkOrderRow,
 } from "@/lib/supabase/types";
+import { materialEntrySchema, timeEntrySchema } from "@/lib/validation";
 
 function formatScheduled(value: string | null) {
   if (!value) {
@@ -29,9 +36,13 @@ export function ElectricianJobs() {
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [sites, setSites] = useState<SiteRow[]>([]);
   const [workOrders, setWorkOrders] = useState<WorkOrderRow[]>([]);
+  const [timeEntries, setTimeEntries] = useState<TimeEntryRow[]>([]);
+  const [materialEntries, setMaterialEntries] = useState<MaterialEntryRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [savingTimeId, setSavingTimeId] = useState<string | null>(null);
+  const [savingMaterialId, setSavingMaterialId] = useState<string | null>(null);
 
   const loadJobs = useCallback(async () => {
     setIsLoading(true);
@@ -44,6 +55,8 @@ export function ElectricianJobs() {
       setCustomers([]);
       setSites([]);
       setWorkOrders([]);
+      setTimeEntries([]);
+      setMaterialEntries([]);
       setIsLoading(false);
       return;
     }
@@ -60,17 +73,35 @@ export function ElectricianJobs() {
       return;
     }
 
-    const [workOrdersResult, customersResult, sitesResult] = await Promise.all([
+    const [
+      workOrdersResult,
+      customersResult,
+      sitesResult,
+      timeEntriesResult,
+      materialEntriesResult,
+    ] = await Promise.all([
       supabase.from("work_orders").select("*").order("scheduled_start", {
         ascending: true,
         nullsFirst: false,
       }),
       supabase.from("customers").select("*"),
       supabase.from("sites").select("*"),
+      supabase.from("time_entries").select("*").order("created_at", {
+        ascending: false,
+      }),
+      supabase.from("material_entries").select("*").order("created_at", {
+        ascending: false,
+      }),
     ]);
 
-    if (workOrdersResult.error || customersResult.error || sitesResult.error) {
-      setError("Kunde inte hämta tilldelade jobb från Supabase.");
+    if (
+      workOrdersResult.error ||
+      customersResult.error ||
+      sitesResult.error ||
+      timeEntriesResult.error ||
+      materialEntriesResult.error
+    ) {
+      setError("Kunde inte hämta tilldelade jobb och rapporter från Supabase.");
       setIsLoading(false);
       return;
     }
@@ -79,6 +110,8 @@ export function ElectricianJobs() {
     setWorkOrders((workOrdersResult.data ?? []) as WorkOrderRow[]);
     setCustomers((customersResult.data ?? []) as CustomerRow[]);
     setSites((sitesResult.data ?? []) as SiteRow[]);
+    setTimeEntries((timeEntriesResult.data ?? []) as TimeEntryRow[]);
+    setMaterialEntries((materialEntriesResult.data ?? []) as MaterialEntryRow[]);
     setIsLoading(false);
   }, [supabase]);
 
@@ -110,12 +143,105 @@ export function ElectricianJobs() {
     setUpdatingId(null);
   }
 
+  async function addTimeEntry(workOrder: WorkOrderRow, formData: FormData) {
+    if (!profile) {
+      setError("Logga in för att rapportera tid.");
+      return false;
+    }
+
+    const result = timeEntrySchema.safeParse({
+      hours: formData.get("hours"),
+      description:
+        typeof formData.get("description") === "string"
+          ? formData.get("description")
+          : "",
+    });
+
+    if (!result.success) {
+      setError(result.error.issues[0]?.message ?? "Kontrollera tiden.");
+      return false;
+    }
+
+    setSavingTimeId(workOrder.id);
+    setError(null);
+
+    const { error: insertError } = await supabase.from("time_entries").insert({
+      company_id: workOrder.company_id,
+      work_order_id: workOrder.id,
+      electrician_id: profile.id,
+      hours: result.data.hours,
+      description: result.data.description?.trim() || null,
+    });
+
+    if (insertError) {
+      setError("Kunde inte spara tid. Kontrollera att jobbet är tilldelat dig.");
+      setSavingTimeId(null);
+      return false;
+    }
+
+    await loadJobs();
+    setSavingTimeId(null);
+    return true;
+  }
+
+  async function addMaterialEntry(workOrder: WorkOrderRow, formData: FormData) {
+    if (!profile) {
+      setError("Logga in för att rapportera material.");
+      return false;
+    }
+
+    const result = materialEntrySchema.safeParse({
+      name: formData.get("name"),
+      quantity: formData.get("quantity"),
+      unit: formData.get("unit") || "st",
+    });
+
+    if (!result.success) {
+      setError(result.error.issues[0]?.message ?? "Kontrollera materialet.");
+      return false;
+    }
+
+    setSavingMaterialId(workOrder.id);
+    setError(null);
+
+    const { error: insertError } = await supabase
+      .from("material_entries")
+      .insert({
+        company_id: workOrder.company_id,
+        work_order_id: workOrder.id,
+        added_by: profile.id,
+        name: result.data.name.trim(),
+        quantity: result.data.quantity,
+        unit: result.data.unit.trim(),
+      });
+
+    if (insertError) {
+      setError(
+        "Kunde inte spara material. Kontrollera att jobbet är tilldelat dig.",
+      );
+      setSavingMaterialId(null);
+      return false;
+    }
+
+    await loadJobs();
+    setSavingMaterialId(null);
+    return true;
+  }
+
   function getCustomer(customerId: string) {
     return customers.find((customer) => customer.id === customerId);
   }
 
   function getSite(siteId: string) {
     return sites.find((site) => site.id === siteId);
+  }
+
+  function getTimeEntries(workOrderId: string) {
+    return timeEntries.filter((entry) => entry.work_order_id === workOrderId);
+  }
+
+  function getMaterialEntries(workOrderId: string) {
+    return materialEntries.filter((entry) => entry.work_order_id === workOrderId);
   }
 
   return (
@@ -160,6 +286,12 @@ export function ElectricianJobs() {
           : workOrders.map((job) => {
               const customer = getCustomer(job.customer_id);
               const site = getSite(job.site_id);
+              const jobTimeEntries = getTimeEntries(job.id);
+              const jobMaterialEntries = getMaterialEntries(job.id);
+              const totalHours = jobTimeEntries.reduce(
+                (sum, entry) => sum + Number(entry.hours),
+                0,
+              );
               const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
                 `${site?.address ?? ""} ${site?.city ?? ""}`,
               )}`;
@@ -219,18 +351,177 @@ export function ElectricianJobs() {
                       >
                         Öppna karta
                       </a>
-                      <button
-                        className="min-h-12 rounded-lg border border-line bg-field px-3 text-sm font-semibold text-ink"
-                        type="button"
-                      >
-                        Tid
-                      </button>
-                      <button
-                        className="min-h-12 rounded-lg border border-line bg-field px-3 text-sm font-semibold text-ink"
-                        type="button"
-                      >
-                        Material
-                      </button>
+                      <div className="flex min-h-12 items-center justify-center rounded-lg border border-line bg-field px-3 text-center text-sm font-semibold text-ink">
+                        {totalHours.toLocaleString("sv-SE")} h
+                      </div>
+                      <div className="flex min-h-12 items-center justify-center rounded-lg border border-line bg-field px-3 text-center text-sm font-semibold text-ink">
+                        {jobMaterialEntries.length} material
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      <section className="rounded-lg border border-line bg-field p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <h3 className="text-sm font-semibold text-ink">
+                            Tid
+                          </h3>
+                          <span className="text-sm font-medium text-slate-600">
+                            {totalHours.toLocaleString("sv-SE")} h
+                          </span>
+                        </div>
+                        <form
+                          className="mt-3 grid gap-2"
+                          onSubmit={async (event) => {
+                            event.preventDefault();
+                            const wasSaved = await addTimeEntry(
+                              job,
+                              new FormData(event.currentTarget),
+                            );
+                            if (wasSaved) {
+                              event.currentTarget.reset();
+                            }
+                          }}
+                        >
+                          <div className="grid grid-cols-[110px_1fr] gap-2">
+                            <label>
+                              <span className="sr-only">Timmar</span>
+                              <input
+                                className="min-h-11 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                                inputMode="decimal"
+                                min="0.25"
+                                name="hours"
+                                placeholder="1,5 h"
+                                step="0.25"
+                                type="number"
+                              />
+                            </label>
+                            <label>
+                              <span className="sr-only">Beskrivning</span>
+                              <input
+                                className="min-h-11 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                                name="description"
+                                placeholder="Vad gjordes?"
+                              />
+                            </label>
+                          </div>
+                          <button
+                            className="min-h-11 rounded-lg bg-action px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={savingTimeId === job.id}
+                          >
+                            {savingTimeId === job.id ? "Sparar" : "Spara tid"}
+                          </button>
+                        </form>
+                        <div className="mt-3 space-y-2">
+                          {jobTimeEntries.length === 0 ? (
+                            <p className="text-sm text-slate-600">
+                              Ingen tid rapporterad ännu.
+                            </p>
+                          ) : (
+                            jobTimeEntries.map((entry) => (
+                              <div
+                                className="rounded-lg border border-line bg-white px-3 py-2 text-sm"
+                                key={entry.id}
+                              >
+                                <p className="font-semibold text-ink">
+                                  {Number(entry.hours).toLocaleString("sv-SE")} h
+                                </p>
+                                {entry.description ? (
+                                  <p className="mt-1 text-slate-600">
+                                    {entry.description}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </section>
+
+                      <section className="rounded-lg border border-line bg-field p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <h3 className="text-sm font-semibold text-ink">
+                            Material
+                          </h3>
+                          <span className="text-sm font-medium text-slate-600">
+                            {jobMaterialEntries.length} rader
+                          </span>
+                        </div>
+                        <form
+                          className="mt-3 grid gap-2"
+                          onSubmit={async (event) => {
+                            event.preventDefault();
+                            const wasSaved = await addMaterialEntry(
+                              job,
+                              new FormData(event.currentTarget),
+                            );
+                            if (wasSaved) {
+                              event.currentTarget.reset();
+                            }
+                          }}
+                        >
+                          <label>
+                            <span className="sr-only">Material</span>
+                            <input
+                              className="min-h-11 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                              name="name"
+                              placeholder="Ex. vägguttag, kabel, klammer"
+                            />
+                          </label>
+                          <div className="grid grid-cols-[1fr_90px] gap-2">
+                            <label>
+                              <span className="sr-only">Antal</span>
+                              <input
+                                className="min-h-11 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                                inputMode="decimal"
+                                min="0.01"
+                                name="quantity"
+                                placeholder="Antal"
+                                step="0.01"
+                                type="number"
+                              />
+                            </label>
+                            <label>
+                              <span className="sr-only">Enhet</span>
+                              <input
+                                className="min-h-11 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                                defaultValue="st"
+                                name="unit"
+                              />
+                            </label>
+                          </div>
+                          <button
+                            className="min-h-11 rounded-lg bg-action px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={savingMaterialId === job.id}
+                          >
+                            {savingMaterialId === job.id
+                              ? "Sparar"
+                              : "Spara material"}
+                          </button>
+                        </form>
+                        <div className="mt-3 space-y-2">
+                          {jobMaterialEntries.length === 0 ? (
+                            <p className="text-sm text-slate-600">
+                              Inget material rapporterat ännu.
+                            </p>
+                          ) : (
+                            jobMaterialEntries.map((entry) => (
+                              <div
+                                className="rounded-lg border border-line bg-white px-3 py-2 text-sm"
+                                key={entry.id}
+                              >
+                                <p className="font-semibold text-ink">
+                                  {entry.name}
+                                </p>
+                                <p className="mt-1 text-slate-600">
+                                  {Number(entry.quantity).toLocaleString(
+                                    "sv-SE",
+                                  )}{" "}
+                                  {entry.unit}
+                                </p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </section>
                     </div>
 
                     <div>
