@@ -11,6 +11,8 @@ import type {
   ProfileRow,
   SiteRow,
   TimeEntryRow,
+  WorkOrderNoteRow,
+  WorkOrderPhotoRow,
   WorkOrderRow,
 } from "@/lib/supabase/types";
 import { customerRequestSchema } from "@/lib/validation";
@@ -42,6 +44,8 @@ export function CustomerWorkOrderFlow() {
   const [workOrders, setWorkOrders] = useState<WorkOrderRow[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntryRow[]>([]);
   const [materialEntries, setMaterialEntries] = useState<MaterialEntryRow[]>([]);
+  const [notes, setNotes] = useState<WorkOrderNoteRow[]>([]);
+  const [photos, setPhotos] = useState<WorkOrderPhotoRow[]>([]);
   const [message, setMessage] = useState("Redo att registrera nästa kundärende.");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,6 +79,8 @@ export function CustomerWorkOrderFlow() {
       setWorkOrders([]);
       setTimeEntries([]);
       setMaterialEntries([]);
+      setNotes([]);
+      setPhotos([]);
       setIsLoading(false);
       return;
     }
@@ -98,6 +104,8 @@ export function CustomerWorkOrderFlow() {
       workOrdersResult,
       timeEntriesResult,
       materialEntriesResult,
+      notesResult,
+      photosResult,
     ] = await Promise.all([
         supabase.from("profiles").select("*").order("full_name"),
         supabase.from("customers").select("*").order("created_at", {
@@ -115,6 +123,12 @@ export function CustomerWorkOrderFlow() {
         supabase.from("material_entries").select("*").order("created_at", {
           ascending: false,
         }),
+        supabase.from("work_order_notes").select("*").order("created_at", {
+          ascending: false,
+        }),
+        supabase.from("work_order_photos").select("*").order("created_at", {
+          ascending: false,
+        }),
       ]);
 
     if (
@@ -123,7 +137,9 @@ export function CustomerWorkOrderFlow() {
       sitesResult.error ||
       workOrdersResult.error ||
       timeEntriesResult.error ||
-      materialEntriesResult.error
+      materialEntriesResult.error ||
+      notesResult.error ||
+      photosResult.error
     ) {
       setError("Kunde inte hämta arbetsdata från Supabase.");
       setIsLoading(false);
@@ -141,6 +157,8 @@ export function CustomerWorkOrderFlow() {
     setWorkOrders((workOrdersResult.data ?? []) as WorkOrderRow[]);
     setTimeEntries((timeEntriesResult.data ?? []) as TimeEntryRow[]);
     setMaterialEntries((materialEntriesResult.data ?? []) as MaterialEntryRow[]);
+    setNotes((notesResult.data ?? []) as WorkOrderNoteRow[]);
+    setPhotos((photosResult.data ?? []) as WorkOrderPhotoRow[]);
     setIsLoading(false);
   }, [supabase]);
 
@@ -293,6 +311,14 @@ export function CustomerWorkOrderFlow() {
 
   function getMaterialEntries(workOrderId: string) {
     return materialEntries.filter((entry) => entry.work_order_id === workOrderId);
+  }
+
+  function getNotes(workOrderId: string) {
+    return notes.filter((note) => note.work_order_id === workOrderId);
+  }
+
+  function getPhotos(workOrderId: string) {
+    return photos.filter((photo) => photo.work_order_id === workOrderId);
   }
 
   return (
@@ -483,12 +509,16 @@ export function CustomerWorkOrderFlow() {
                     const electrician = getElectrician(workOrder.assigned_to);
                     const jobTimeEntries = getTimeEntries(workOrder.id);
                     const jobMaterialEntries = getMaterialEntries(workOrder.id);
+                    const jobNotes = getNotes(workOrder.id);
+                    const jobPhotos = getPhotos(workOrder.id);
                     const totalHours = jobTimeEntries.reduce(
                       (sum, entry) => sum + Number(entry.hours),
                       0,
                     );
                     const missingTime = totalHours <= 0;
                     const missingMaterial = jobMaterialEntries.length === 0;
+                    const missingDocumentation =
+                      jobNotes.length === 0 && jobPhotos.length === 0;
 
                     return (
                       <article
@@ -533,14 +563,19 @@ export function CustomerWorkOrderFlow() {
                           <div className="rounded-lg border border-line bg-white p-3">
                             <p className="text-sm text-slate-600">Kontroll</p>
                             <p className="mt-1 text-sm font-semibold text-ink">
-                              {missingTime || missingMaterial
+                              {missingTime || missingMaterial || missingDocumentation
                                 ? "Behöver kollas"
                                 : "Ser komplett ut"}
                             </p>
                           </div>
                         </div>
 
-                        {missingTime || missingMaterial ? (
+                        <div className="mt-3 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                          Dokumentation: {jobNotes.length} anteckningar,{" "}
+                          {jobPhotos.length} foton
+                        </div>
+
+                        {missingTime || missingMaterial || missingDocumentation ? (
                           <div className="mt-3 flex flex-wrap gap-2">
                             {missingTime ? (
                               <span className="inline-flex min-h-8 items-center rounded-full border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-900">
@@ -550,6 +585,11 @@ export function CustomerWorkOrderFlow() {
                             {missingMaterial ? (
                               <span className="inline-flex min-h-8 items-center rounded-full border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-900">
                                 Inget material rapporterat
+                              </span>
+                            ) : null}
+                            {missingDocumentation ? (
+                              <span className="inline-flex min-h-8 items-center rounded-full border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-900">
+                                Saknar dokumentation
                               </span>
                             ) : null}
                           </div>
@@ -567,6 +607,22 @@ export function CustomerWorkOrderFlow() {
                                 </span>{" "}
                                 {Number(entry.quantity).toLocaleString("sv-SE")}{" "}
                                 {entry.unit}
+                              </p>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {jobNotes.length > 0 ? (
+                          <div className="mt-3 space-y-2">
+                            <p className="text-sm font-semibold text-ink">
+                              Senaste anteckningar
+                            </p>
+                            {jobNotes.slice(0, 2).map((note) => (
+                              <p
+                                className="rounded-lg border border-line bg-white px-3 py-2 text-sm leading-6 text-slate-700"
+                                key={note.id}
+                              >
+                                {note.note}
                               </p>
                             ))}
                           </div>

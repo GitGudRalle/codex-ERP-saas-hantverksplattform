@@ -55,10 +55,11 @@ This setup includes the initial app shell and the first live Supabase-backed MVP
 
 - Dashboard
 - Kunder
+- Customer detail page with contact info, sites, and linked work orders
 - Arbetsordrar with customer request to work order flow, assignment, and completed-job review
 - Work order detail page with customer, site, reporting, documentation, and invoice summary
 - Mina jobb with mobile-first status changes, time reporting, material reporting, and notes
-- Fakturaunderlag with review of ready work orders and saved invoice text
+- Fakturaunderlag with review of ready work orders, saved invoice text, and draft/ready status
 - Role-aware navigation and an electrician-focused start card
 - Supabase migration SQL for the core company-scoped data model, hardened RLS policies, and one invoice draft per work order
 

@@ -14,6 +14,12 @@ import type {
 } from "@/lib/supabase/types";
 import { invoiceDraftSchema } from "@/lib/validation";
 
+const invoiceDraftStatusLabels: Record<InvoiceDraftRow["status"], string> = {
+  draft: "Utkast",
+  ready: "Redo",
+  exported: "Exporterad",
+};
+
 function formatDate(value: string | null) {
   if (!value) {
     return "Ej satt";
@@ -216,7 +222,10 @@ export function InvoiceDraftFlow() {
     loadData();
   }, [loadData]);
 
-  async function saveInvoiceDraft(workOrder: WorkOrderRow) {
+  async function saveInvoiceDraft(
+    workOrder: WorkOrderRow,
+    status: InvoiceDraftRow["status"] = "draft",
+  ) {
     if (!profile || !canManage) {
       setError("Du behöver vara admin eller manager för att spara fakturaunderlag.");
       return;
@@ -243,7 +252,7 @@ export function InvoiceDraftFlow() {
       company_id: workOrder.company_id,
       work_order_id: workOrder.id,
       invoice_text: result.data.invoiceText,
-      status: "draft" as const,
+      status,
       created_by: profile.id,
     };
 
@@ -263,7 +272,11 @@ export function InvoiceDraftFlow() {
       return;
     }
 
-    setMessage(`Fakturaunderlag sparat för ${workOrder.title}.`);
+    setMessage(
+      status === "ready"
+        ? `Fakturaunderlag markerat redo för ${workOrder.title}.`
+        : `Fakturaunderlag sparat för ${workOrder.title}.`,
+    );
     await loadData();
     setSavingId(null);
   }
@@ -390,7 +403,7 @@ export function InvoiceDraftFlow() {
                         <StatusBadge status={workOrder.status} />
                         {existingDraft ? (
                           <span className="inline-flex min-h-8 items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 text-sm font-medium text-emerald-900">
-                            Underlag sparat
+                            {invoiceDraftStatusLabels[existingDraft.status]}
                           </span>
                         ) : null}
                       </div>
@@ -487,18 +500,30 @@ export function InvoiceDraftFlow() {
                       />
                     </label>
 
-                    <button
-                      className="mt-4 min-h-12 w-full rounded-lg bg-action px-4 text-base font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                      disabled={!canManage || savingId === workOrder.id}
-                      onClick={() => saveInvoiceDraft(workOrder)}
-                      type="button"
-                    >
-                      {savingId === workOrder.id
-                        ? "Sparar"
-                        : existingDraft
-                          ? "Uppdatera fakturaunderlag"
-                          : "Spara fakturaunderlag"}
-                    </button>
+                    <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                      <button
+                        className="min-h-12 w-full rounded-lg border border-line bg-white px-4 text-base font-semibold text-ink hover:border-action disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        disabled={!canManage || savingId === workOrder.id}
+                        onClick={() => saveInvoiceDraft(workOrder)}
+                        type="button"
+                      >
+                        {savingId === workOrder.id
+                          ? "Sparar"
+                          : existingDraft
+                            ? "Spara som utkast"
+                            : "Spara fakturaunderlag"}
+                      </button>
+                      <button
+                        className="min-h-12 w-full rounded-lg bg-action px-4 text-base font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        disabled={!canManage || savingId === workOrder.id}
+                        onClick={() => saveInvoiceDraft(workOrder, "ready")}
+                        type="button"
+                      >
+                        {savingId === workOrder.id
+                          ? "Sparar"
+                          : "Markera underlag redo"}
+                      </button>
+                    </div>
                   </article>
                 );
               })}

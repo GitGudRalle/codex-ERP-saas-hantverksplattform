@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { CustomerRow, SiteRow } from "@/lib/supabase/types";
@@ -120,6 +121,12 @@ export function CustomerList() {
                         Ring
                       </a>
                     ) : null}
+                    <Link
+                      className="flex min-h-11 items-center justify-center rounded-lg border border-line bg-field px-4 text-sm font-semibold text-ink hover:border-action"
+                      href={`/customers/${customer.id}`}
+                    >
+                      Öppna
+                    </Link>
                   </div>
                   <div className="mt-4 space-y-2 text-sm text-slate-700">
                     {customer.phone ? <p>{customer.phone}</p> : null}
