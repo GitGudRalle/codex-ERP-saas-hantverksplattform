@@ -57,10 +57,10 @@ This setup includes the initial app shell and the first live Supabase-backed MVP
 - Kunder
 - Arbetsordrar with customer request to work order flow, assignment, and completed-job review
 - Mina jobb with mobile-first status changes, time reporting, and material reporting
-- Fakturaunderlag placeholder
+- Fakturaunderlag with review of ready work orders and saved invoice text
 - Supabase migration SQL for the core company-scoped data model and hardened RLS policies
 
-Photo storage, invoice draft generation, and real invoice integrations are intentionally not implemented yet.
+Photo storage and real invoice integrations are intentionally not implemented yet.
 
 ## Database
 

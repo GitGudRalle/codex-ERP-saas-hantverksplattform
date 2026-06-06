@@ -34,3 +34,12 @@ export const materialEntrySchema = z.object({
 
 export type TimeEntryForm = z.infer<typeof timeEntrySchema>;
 export type MaterialEntryForm = z.infer<typeof materialEntrySchema>;
+
+export const invoiceDraftSchema = z.object({
+  invoiceText: z
+    .string()
+    .min(20, "Skriv en fakturatext med vad som ska faktureras")
+    .max(2000, "Fakturatexten är för lång"),
+});
+
+export type InvoiceDraftForm = z.infer<typeof invoiceDraftSchema>;

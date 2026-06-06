@@ -31,8 +31,8 @@ const nextSteps = [
   },
   {
     href: "/invoice-drafts",
-    label: "Planera fakturaunderlag",
-    detail: "Nästa produktsteg efter tid och material.",
+    label: "Skapa fakturaunderlag",
+    detail: "Spara fakturatext från tid och material.",
   },
 ];
 

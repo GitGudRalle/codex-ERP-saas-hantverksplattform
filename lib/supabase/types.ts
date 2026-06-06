@@ -73,3 +73,14 @@ export type MaterialEntryRow = {
   unit: string;
   created_at: string;
 };
+
+export type InvoiceDraftRow = {
+  id: string;
+  company_id: string;
+  work_order_id: string;
+  status: "draft" | "ready" | "exported";
+  invoice_text: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};

@@ -2,29 +2,30 @@
 
 Use this file when a task affects more than 3 files, changes database schema, changes auth/security, or introduces a new product module.
 
-## Active plan: RLS hardening and completed-job review
+## Active plan: Invoice draft creation
 
 ## Goal
 
-Harden the current Supabase access model and add the first admin review step between completed field work and invoice basis.
+Add the first saved invoice draft flow after a work order has been reviewed and marked ready for invoicing.
 
 ## User story
 
-As an admin or manager, I want to review completed work orders and see missing time/material before marking them ready for invoicing, so that invoice drafts are based on complete field data.
+As an admin or manager, I want to turn a ready work order into a saved invoice draft, so that I have a clear basis for creating the real invoice later.
 
 ## Scope
 
 Included:
-- RLS helper functions moved out of the exposed public API schema
-- RLS policies scoped to authenticated users and optimized for auth helper calls
-- Admin/manager review section for completed work orders
-- Missing time/material flags before invoice readiness
+- Invoice draft page backed by Supabase
+- Ready-for-invoice work order list
+- Time and material review on each draft card
+- Editable invoice text generated from work order data
+- Insert/update of `invoice_drafts`
 
 Excluded:
-- Full invoice draft generation
 - Fortnox/Visma export
 - Photo storage changes
 - Advanced reporting
+- Sending real invoices
 
 ## Files likely affected
 
@@ -37,26 +38,25 @@ Excluded:
 
 ## Data model changes
 
-- No new business tables.
-- Add private database helper schema for RLS functions.
+- No schema changes.
+- Uses existing `invoice_drafts` table.
 
 ## UI changes
 
-- Add a completed-job review section to the work order page.
-- Keep review cards readable on mobile and useful on desktop.
+- Replace invoice placeholder with a practical invoice draft workflow.
+- Keep cards readable on mobile while still useful for admin desktop work.
 
 ## Security/RLS considerations
 
-- Helper functions should not be callable as public RPC endpoints.
-- Policies should apply to authenticated users only.
-- Electricians must remain limited to assigned work orders and related records.
+- Invoice drafts remain admin/manager only through existing RLS.
+- All reads and writes stay company-scoped through RLS.
 
 ## Implementation steps
 
-1. Add and apply RLS hardening migration.
-2. Update database security notes.
-3. Extend work order data loading with time and material reports.
-4. Add completed-job review cards and mark-ready action.
+1. Add invoice draft validation and row type.
+2. Replace invoice placeholder page with a live component.
+3. Load ready work orders, related time/material, and existing drafts.
+4. Generate editable invoice text and save insert/update drafts.
 5. Validate lint, typecheck, build, and basic browser smoke.
 
 ## Validation
@@ -67,14 +67,14 @@ Commands to run:
 - npm test, if available
 
 Manual checks:
-- Confirm admin/manager can see completed jobs and mark them ready for invoicing.
-- Confirm missing time/material is visible before the action.
-- Confirm electrician access still relies on assigned work orders.
+- Confirm logged-out users see the login prompt.
+- Confirm admin/manager can save invoice drafts for ready work orders.
+- Confirm empty state appears when nothing is ready for invoicing.
 
 ## Risks
 
-- Moving helpers to a private schema must not break app reads/writes.
-- The review screen is a first pass and does not create invoice drafts yet.
+- Duplicate drafts are avoided in the UI by updating the first existing draft for a work order, but the database does not yet enforce uniqueness.
+- The generated text is deliberately simple and should be refined with real users.
 
 ## Plan template
 
