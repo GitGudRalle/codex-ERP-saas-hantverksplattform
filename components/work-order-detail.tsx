@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
+import { WorkOrderPhotoGallery } from "@/components/work-order-photo-gallery";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   CustomerRow,
@@ -423,6 +424,23 @@ export function WorkOrderDetail({ workOrderId }: WorkOrderDetailProps) {
             </Link>
           ) : null}
         </article>
+      </section>
+
+      <section className="rounded-lg border border-line bg-white p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-ink">Foton</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Dokumentationsbilder från montörens mobil.
+            </p>
+          </div>
+          <span className="inline-flex min-h-8 items-center rounded-full border border-line px-3 text-sm font-medium text-slate-700">
+            {photos.length} st
+          </span>
+        </div>
+        <div className="mt-4">
+          <WorkOrderPhotoGallery photos={photos} />
+        </div>
       </section>
 
       <Link

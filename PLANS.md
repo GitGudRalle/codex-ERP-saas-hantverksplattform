@@ -2,62 +2,66 @@
 
 Use this file when a task affects more than 3 files, changes database schema, changes auth/security, or introduces a new product module.
 
-## Active plan: Customer and invoice review improvements
+## Active plan: Work order photo documentation
 
 ## Goal
 
-Tighten the review flow after a field job is completed, and make customer context easier to inspect.
+Allow electricians to upload work order photos from mobile devices and make the documentation visible through review and detail flows.
 
 ## User story
 
-As an admin or manager, I want to review completed jobs with documentation context, open a customer detail page, and mark invoice drafts as ready, so that fewer details are missed before invoicing.
+As an electrician, I want to add photos from my phone to an assigned work order, so that documentation follows the job into admin review and invoice preparation.
 
 ## Scope
 
 Included:
-- Completed-job review includes note/photo counts and latest notes
-- Customer detail route with contact info, sites, and work orders
-- Customer list links to customer details
-- Invoice draft status labels and a "ready" action
+- Private Supabase Storage bucket for work order photos
+- Storage RLS policies scoped by company and work order access
+- Mobile-compatible upload UI in `Mina jobb`
+- Photo metadata saved in `work_order_photos`
+- Photo gallery in `Mina jobb`, work order detail, and completed-job review
 
 Excluded:
-- New database schema
-- Advanced reporting
+- Native camera app integration
+- Offline upload queue
+- Image compression/transcoding
 - Sending real invoices
 - Fortnox/Visma export
-- Photo upload/storage changes
 
 ## Files likely affected
 
+- `supabase/migrations/**`
 - `app/**`
 - `components/**`
 - `README.md`
 - `PLANS.md`
+- `docs/**`
 
 ## Data model changes
 
-- No schema changes.
-- Uses existing customer, site, work order, documentation, and invoice draft tables.
+- Adds a private Supabase Storage bucket and storage object policies.
+- Uses the existing `work_order_photos` table for metadata.
 
 ## UI changes
 
-- Add `/customers/[id]`.
-- Add practical review signals for notes/photos in completed-job review.
-- Show invoice draft status as Utkast/Redo/Exporterad and allow marking underlag redo.
+- Add photo upload section in each mobile job card.
+- Show uploaded photos with signed URLs.
+- Keep controls large enough for iPhone and Android mobile browsers.
 
 ## Security/RLS considerations
 
-- Reads and writes are still enforced by existing Supabase RLS.
-- No new policies are required.
-- Customer detail only shows records visible to the current role.
+- The storage bucket is private.
+- Object paths include `company_id/work_order_id/...`.
+- Storage policies call private helper functions to verify company and work order access.
+- Table metadata remains protected by existing `work_order_photos` RLS policies.
 
 ## Implementation steps
 
-1. Load notes and photos in the admin work order review flow.
-2. Add documentation signals and latest notes to completed job cards.
-3. Add customer detail route and component.
-4. Add invoice draft status labels and ready action.
-5. Validate lint, typecheck, build, and browser smoke.
+1. Add storage bucket and object policies.
+2. Add reusable signed-photo gallery component.
+3. Add mobile upload form in `Mina jobb`.
+4. Show photos in detail and review surfaces.
+5. Validate lint, typecheck, build, browser smoke, and Supabase advisors.
 
 ## Validation
 
@@ -67,14 +71,14 @@ Commands to run:
 - npm run build
 
 Manual checks:
-- Confirm customer detail logged-out state.
-- Confirm customer cards link to `/customers/[id]`.
-- Confirm invoice draft buttons render without layout issues.
+- Confirm logged-out users cannot access photo UI.
+- Confirm upload accepts common iPhone/Android image formats.
+- Confirm gallery renders signed URLs without public bucket access.
 
 ## Risks
 
-- The app can show photo counts before upload exists; this is intentional until storage is implemented.
-- Invoice drafts can be marked ready, but no external invoice export exists yet.
+- HEIC preview support depends on the browser; the app still stores the file and offers an open link.
+- Large phone photos may hit the 10 MB limit until compression is added.
 
 ## Plan template
 

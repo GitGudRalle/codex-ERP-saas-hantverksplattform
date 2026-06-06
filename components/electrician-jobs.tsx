@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
+import { WorkOrderPhotoGallery } from "@/components/work-order-photo-gallery";
 import {
   nextFieldStatuses,
   workOrderStatusLabels,
@@ -16,6 +17,7 @@ import type {
   SiteRow,
   TimeEntryRow,
   WorkOrderNoteRow,
+  WorkOrderPhotoRow,
   WorkOrderRow,
 } from "@/lib/supabase/types";
 import {
@@ -23,6 +25,16 @@ import {
   timeEntrySchema,
   workOrderNoteSchema,
 } from "@/lib/validation";
+
+const photoBucket = "work-order-photos";
+const maxPhotoSizeBytes = 10 * 1024 * 1024;
+const allowedPhotoMimeTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
 
 function formatScheduled(value: string | null) {
   if (!value) {
@@ -36,6 +48,64 @@ function formatScheduled(value: string | null) {
   }).format(new Date(value));
 }
 
+function getPhotoMimeType(file: File) {
+  if (file.type) {
+    return file.type;
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+
+  if (extension === "jpg" || extension === "jpeg") {
+    return "image/jpeg";
+  }
+
+  if (extension === "png") {
+    return "image/png";
+  }
+
+  if (extension === "webp") {
+    return "image/webp";
+  }
+
+  if (extension === "heic") {
+    return "image/heic";
+  }
+
+  if (extension === "heif") {
+    return "image/heif";
+  }
+
+  return "";
+}
+
+function getPhotoExtension(file: File) {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+
+  if (extension && ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(extension)) {
+    return extension === "jpeg" ? "jpg" : extension;
+  }
+
+  const mimeType = getPhotoMimeType(file);
+
+  if (mimeType === "image/png") {
+    return "png";
+  }
+
+  if (mimeType === "image/webp") {
+    return "webp";
+  }
+
+  if (mimeType === "image/heic") {
+    return "heic";
+  }
+
+  if (mimeType === "image/heif") {
+    return "heif";
+  }
+
+  return "jpg";
+}
+
 export function ElectricianJobs() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
@@ -45,12 +115,14 @@ export function ElectricianJobs() {
   const [timeEntries, setTimeEntries] = useState<TimeEntryRow[]>([]);
   const [materialEntries, setMaterialEntries] = useState<MaterialEntryRow[]>([]);
   const [workOrderNotes, setWorkOrderNotes] = useState<WorkOrderNoteRow[]>([]);
+  const [workOrderPhotos, setWorkOrderPhotos] = useState<WorkOrderPhotoRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [savingTimeId, setSavingTimeId] = useState<string | null>(null);
   const [savingMaterialId, setSavingMaterialId] = useState<string | null>(null);
   const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
+  const [savingPhotoId, setSavingPhotoId] = useState<string | null>(null);
 
   const loadJobs = useCallback(async () => {
     setIsLoading(true);
@@ -66,6 +138,7 @@ export function ElectricianJobs() {
       setTimeEntries([]);
       setMaterialEntries([]);
       setWorkOrderNotes([]);
+      setWorkOrderPhotos([]);
       setIsLoading(false);
       return;
     }
@@ -89,6 +162,7 @@ export function ElectricianJobs() {
       timeEntriesResult,
       materialEntriesResult,
       notesResult,
+      photosResult,
     ] = await Promise.all([
       supabase.from("work_orders").select("*").order("scheduled_start", {
         ascending: true,
@@ -105,6 +179,9 @@ export function ElectricianJobs() {
       supabase.from("work_order_notes").select("*").order("created_at", {
         ascending: false,
       }),
+      supabase.from("work_order_photos").select("*").order("created_at", {
+        ascending: false,
+      }),
     ]);
 
     if (
@@ -113,7 +190,8 @@ export function ElectricianJobs() {
       sitesResult.error ||
       timeEntriesResult.error ||
       materialEntriesResult.error ||
-      notesResult.error
+      notesResult.error ||
+      photosResult.error
     ) {
       setError("Kunde inte hämta tilldelade jobb och rapporter från Supabase.");
       setIsLoading(false);
@@ -127,6 +205,7 @@ export function ElectricianJobs() {
     setTimeEntries((timeEntriesResult.data ?? []) as TimeEntryRow[]);
     setMaterialEntries((materialEntriesResult.data ?? []) as MaterialEntryRow[]);
     setWorkOrderNotes((notesResult.data ?? []) as WorkOrderNoteRow[]);
+    setWorkOrderPhotos((photosResult.data ?? []) as WorkOrderPhotoRow[]);
     setIsLoading(false);
   }, [supabase]);
 
@@ -283,6 +362,77 @@ export function ElectricianJobs() {
     return true;
   }
 
+  async function addWorkOrderPhoto(workOrder: WorkOrderRow, formData: FormData) {
+    if (!profile) {
+      setError("Logga in för att ladda upp foto.");
+      return false;
+    }
+
+    const file = formData.get("photo");
+    const caption =
+      typeof formData.get("caption") === "string"
+        ? formData.get("caption")?.toString().trim()
+        : "";
+
+    if (!(file instanceof File) || file.size === 0) {
+      setError("Välj ett foto att ladda upp.");
+      return false;
+    }
+
+    const mimeType = getPhotoMimeType(file);
+
+    if (!allowedPhotoMimeTypes.has(mimeType)) {
+      setError("Fotot behöver vara JPG, PNG, WebP, HEIC eller HEIF.");
+      return false;
+    }
+
+    if (file.size > maxPhotoSizeBytes) {
+      setError("Fotot är för stort. Maxstorlek är 10 MB.");
+      return false;
+    }
+
+    setSavingPhotoId(workOrder.id);
+    setError(null);
+
+    const extension = getPhotoExtension(file);
+    const storagePath = `${workOrder.company_id}/${workOrder.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(photoBucket)
+      .upload(storagePath, file, {
+        cacheControl: "3600",
+        contentType: mimeType,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      setError("Kunde inte ladda upp fotot. Kontrollera behörighet och filtyp.");
+      setSavingPhotoId(null);
+      return false;
+    }
+
+    const { error: insertError } = await supabase
+      .from("work_order_photos")
+      .insert({
+        company_id: workOrder.company_id,
+        work_order_id: workOrder.id,
+        uploaded_by: profile.id,
+        storage_path: storagePath,
+        caption: caption || null,
+      });
+
+    if (insertError) {
+      await supabase.storage.from(photoBucket).remove([storagePath]);
+      setError("Fotot laddades upp, men kunde inte kopplas till arbetsordern.");
+      setSavingPhotoId(null);
+      return false;
+    }
+
+    await loadJobs();
+    setSavingPhotoId(null);
+    return true;
+  }
+
   function getCustomer(customerId: string) {
     return customers.find((customer) => customer.id === customerId);
   }
@@ -301,6 +451,10 @@ export function ElectricianJobs() {
 
   function getWorkOrderNotes(workOrderId: string) {
     return workOrderNotes.filter((entry) => entry.work_order_id === workOrderId);
+  }
+
+  function getWorkOrderPhotos(workOrderId: string) {
+    return workOrderPhotos.filter((entry) => entry.work_order_id === workOrderId);
   }
 
   return (
@@ -348,6 +502,7 @@ export function ElectricianJobs() {
               const jobTimeEntries = getTimeEntries(job.id);
               const jobMaterialEntries = getMaterialEntries(job.id);
               const jobNotes = getWorkOrderNotes(job.id);
+              const jobPhotos = getWorkOrderPhotos(job.id);
               const totalHours = jobTimeEntries.reduce(
                 (sum, entry) => sum + Number(entry.hours),
                 0,
@@ -432,6 +587,61 @@ export function ElectricianJobs() {
                             </div>
                           ))
                         )}
+                      </div>
+                    </section>
+
+                    <section className="rounded-lg border border-line bg-field p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-semibold text-ink">
+                          Foton
+                        </h3>
+                        <span className="text-sm font-medium text-slate-600">
+                          {jobPhotos.length} st
+                        </span>
+                      </div>
+                      <form
+                        className="mt-3 grid gap-2"
+                        onSubmit={async (event) => {
+                          event.preventDefault();
+                          const wasSaved = await addWorkOrderPhoto(
+                            job,
+                            new FormData(event.currentTarget),
+                          );
+                          if (wasSaved) {
+                            event.currentTarget.reset();
+                          }
+                        }}
+                      >
+                        <label className="block">
+                          <span className="mb-1 block text-sm font-medium text-slate-700">
+                            Välj eller ta foto
+                          </span>
+                          <input
+                            accept="image/*,.heic,.heif"
+                            className="block min-h-12 w-full rounded-lg border border-line bg-white px-3 py-2 text-base file:mr-3 file:rounded-lg file:border-0 file:bg-action file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+                            name="photo"
+                            type="file"
+                          />
+                        </label>
+                        <label>
+                          <span className="sr-only">Bildtext</span>
+                          <input
+                            className="min-h-11 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                            name="caption"
+                            placeholder="Kort bildtext, ex. Före byte av uttag"
+                          />
+                        </label>
+                        <button
+                          className="min-h-11 rounded-lg bg-action px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={savingPhotoId === job.id}
+                        >
+                          {savingPhotoId === job.id
+                            ? "Laddar upp"
+                            : "Ladda upp foto"}
+                        </button>
+                      </form>
+                      <div className="mt-3">
+                        <WorkOrderPhotoGallery photos={jobPhotos} maxPhotos={4} />
                       </div>
                     </section>
 

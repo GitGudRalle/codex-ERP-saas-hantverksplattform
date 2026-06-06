@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
+import { WorkOrderPhotoGallery } from "@/components/work-order-photo-gallery";
 import { priorityLabels, type WorkOrderPriority } from "@/lib/domain";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
@@ -625,6 +626,18 @@ export function CustomerWorkOrderFlow() {
                                 {note.note}
                               </p>
                             ))}
+                          </div>
+                        ) : null}
+
+                        {jobPhotos.length > 0 ? (
+                          <div className="mt-3 space-y-2">
+                            <p className="text-sm font-semibold text-ink">
+                              Senaste foton
+                            </p>
+                            <WorkOrderPhotoGallery
+                              maxPhotos={2}
+                              photos={jobPhotos}
+                            />
                           </div>
                         ) : null}
 

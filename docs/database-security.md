@@ -16,6 +16,18 @@ supabase/migrations/001_core_mvp_schema.sql
 - Electricians can add time, material, notes, and photos only for assigned work orders.
 - Invoice drafts are restricted to admin and manager users.
 
+## Photo storage
+
+Migration `supabase/migrations/006_work_order_photo_storage.sql` creates the private `work-order-photos` Supabase Storage bucket.
+
+- The bucket is not public.
+- Object paths are scoped as `company_id/work_order_id/file-name`.
+- Storage object policies call `app_private.can_access_work_order_photo_object(name)`.
+- The helper validates the path, current company, and access to the target work order.
+- Photo metadata remains in `public.work_order_photos` and is protected by table RLS.
+
+Signed URLs are created client-side only after RLS allows the current user to select the storage object.
+
 ## Bootstrap note
 
 The migration does not solve company onboarding by itself. The first company and first admin profile need to be created through a trusted setup path before ordinary users can rely on RLS policies.
@@ -39,3 +51,4 @@ Before connecting real app writes:
 2. Create a test company with admin, manager, and electrician profiles.
 3. Verify that an electrician cannot query another company's customers, sites, work orders, time entries, materials, notes, photos, or invoice drafts.
 4. Verify that admin and manager users can manage only their own company data.
+5. Verify that work order photo objects cannot be listed or signed outside allowed company/work order paths.

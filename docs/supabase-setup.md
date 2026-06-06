@@ -2,10 +2,16 @@
 
 ## Run the first migration
 
-Use the raw GitHub version of the migration when copying into Supabase SQL Editor:
+Use the raw GitHub version of each migration when copying into Supabase SQL Editor.
+Run migrations in order:
 
 ```text
-https://github.com/GitGudRalle/codex-ERP-saas-hantverksplattform/raw/main/supabase/migrations/001_core_mvp_schema.sql
+supabase/migrations/001_core_mvp_schema.sql
+supabase/migrations/002_reporting_indexes_and_function_hardening.sql
+supabase/migrations/003_rls_policy_hardening.sql
+supabase/migrations/004_private_rls_function_grants.sql
+supabase/migrations/005_unique_invoice_draft_per_work_order.sql
+supabase/migrations/006_work_order_photo_storage.sql
 ```
 
 Choose **Run and enable RLS** when Supabase asks.

@@ -58,12 +58,23 @@ This setup includes the initial app shell and the first live Supabase-backed MVP
 - Customer detail page with contact info, sites, and linked work orders
 - Arbetsordrar with customer request to work order flow, assignment, and completed-job review
 - Work order detail page with customer, site, reporting, documentation, and invoice summary
-- Mina jobb with mobile-first status changes, time reporting, material reporting, and notes
+- Mina jobb with mobile-first status changes, time reporting, material reporting, notes, and photo upload
 - Fakturaunderlag with review of ready work orders, saved invoice text, and draft/ready status
 - Role-aware navigation and an electrician-focused start card
-- Supabase migration SQL for the core company-scoped data model, hardened RLS policies, and one invoice draft per work order
+- Supabase migration SQL for the core company-scoped data model, hardened RLS policies, one invoice draft per work order, and private work order photo storage
 
-Photo storage and real invoice integrations are intentionally not implemented yet.
+Real invoice integrations are intentionally not implemented yet.
+
+## Photo documentation
+
+Work order photos use a private Supabase Storage bucket named `work-order-photos`.
+Files are stored under:
+
+```text
+company_id/work_order_id/file-name
+```
+
+The upload UI uses a standard mobile web file input with `accept="image/*,.heic,.heif"`, which works with both iPhone and Android browsers for camera or photo library selection. Supported formats are JPG, PNG, WebP, HEIC, and HEIF up to 10 MB.
 
 ## Database
 
