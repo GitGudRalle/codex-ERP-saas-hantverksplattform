@@ -1,23 +1,46 @@
 create extension if not exists "pgcrypto";
 
-create type public.profile_role as enum ('admin', 'manager', 'electrician');
-create type public.work_order_status as enum (
-  'new',
-  'scheduled',
-  'assigned',
-  'on_the_way',
-  'in_progress',
-  'waiting_for_material',
-  'waiting_for_customer',
-  'completed',
-  'ready_for_invoice',
-  'invoiced',
-  'cancelled'
-);
-create type public.work_order_priority as enum ('low', 'normal', 'high', 'urgent');
-create type public.invoice_draft_status as enum ('draft', 'ready', 'exported');
+do $$
+begin
+  create type public.profile_role as enum ('admin', 'manager', 'electrician');
+exception
+  when duplicate_object then null;
+end $$;
 
-create table public.companies (
+do $$
+begin
+  create type public.work_order_status as enum (
+    'new',
+    'scheduled',
+    'assigned',
+    'on_the_way',
+    'in_progress',
+    'waiting_for_material',
+    'waiting_for_customer',
+    'completed',
+    'ready_for_invoice',
+    'invoiced',
+    'cancelled'
+  );
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create type public.work_order_priority as enum ('low', 'normal', 'high', 'urgent');
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create type public.invoice_draft_status as enum ('draft', 'ready', 'exported');
+exception
+  when duplicate_object then null;
+end $$;
+
+create table if not exists public.companies (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   organization_number text,
@@ -25,7 +48,7 @@ create table public.companies (
   updated_at timestamptz not null default now()
 );
 
-create table public.profiles (
+create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   company_id uuid not null references public.companies(id) on delete cascade,
   role public.profile_role not null default 'electrician',
@@ -35,7 +58,7 @@ create table public.profiles (
   updated_at timestamptz not null default now()
 );
 
-create table public.customers (
+create table if not exists public.customers (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
   name text not null,
@@ -46,7 +69,7 @@ create table public.customers (
   updated_at timestamptz not null default now()
 );
 
-create table public.sites (
+create table if not exists public.sites (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
   customer_id uuid not null references public.customers(id) on delete cascade,
@@ -58,7 +81,7 @@ create table public.sites (
   updated_at timestamptz not null default now()
 );
 
-create table public.work_orders (
+create table if not exists public.work_orders (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
   customer_id uuid not null references public.customers(id) on delete restrict,
@@ -74,7 +97,7 @@ create table public.work_orders (
   updated_at timestamptz not null default now()
 );
 
-create table public.time_entries (
+create table if not exists public.time_entries (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
   work_order_id uuid not null references public.work_orders(id) on delete cascade,
@@ -86,7 +109,7 @@ create table public.time_entries (
   updated_at timestamptz not null default now()
 );
 
-create table public.material_entries (
+create table if not exists public.material_entries (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
   work_order_id uuid not null references public.work_orders(id) on delete cascade,
@@ -98,7 +121,7 @@ create table public.material_entries (
   updated_at timestamptz not null default now()
 );
 
-create table public.work_order_notes (
+create table if not exists public.work_order_notes (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
   work_order_id uuid not null references public.work_orders(id) on delete cascade,
@@ -108,7 +131,7 @@ create table public.work_order_notes (
   updated_at timestamptz not null default now()
 );
 
-create table public.work_order_photos (
+create table if not exists public.work_order_photos (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
   work_order_id uuid not null references public.work_orders(id) on delete cascade,
@@ -118,7 +141,7 @@ create table public.work_order_photos (
   created_at timestamptz not null default now()
 );
 
-create table public.invoice_drafts (
+create table if not exists public.invoice_drafts (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
   work_order_id uuid not null references public.work_orders(id) on delete restrict,
@@ -129,17 +152,17 @@ create table public.invoice_drafts (
   updated_at timestamptz not null default now()
 );
 
-create index profiles_company_id_idx on public.profiles(company_id);
-create index customers_company_id_idx on public.customers(company_id);
-create index customers_company_name_idx on public.customers(company_id, name);
-create index sites_customer_id_idx on public.sites(customer_id);
-create index work_orders_company_status_idx on public.work_orders(company_id, status);
-create index work_orders_assigned_status_idx on public.work_orders(assigned_to, status);
-create index time_entries_work_order_id_idx on public.time_entries(work_order_id);
-create index material_entries_work_order_id_idx on public.material_entries(work_order_id);
-create index work_order_notes_work_order_id_idx on public.work_order_notes(work_order_id);
-create index work_order_photos_work_order_id_idx on public.work_order_photos(work_order_id);
-create index invoice_drafts_company_status_idx on public.invoice_drafts(company_id, status);
+create index if not exists profiles_company_id_idx on public.profiles(company_id);
+create index if not exists customers_company_id_idx on public.customers(company_id);
+create index if not exists customers_company_name_idx on public.customers(company_id, name);
+create index if not exists sites_customer_id_idx on public.sites(customer_id);
+create index if not exists work_orders_company_status_idx on public.work_orders(company_id, status);
+create index if not exists work_orders_assigned_status_idx on public.work_orders(assigned_to, status);
+create index if not exists time_entries_work_order_id_idx on public.time_entries(work_order_id);
+create index if not exists material_entries_work_order_id_idx on public.material_entries(work_order_id);
+create index if not exists work_order_notes_work_order_id_idx on public.work_order_notes(work_order_id);
+create index if not exists work_order_photos_work_order_id_idx on public.work_order_photos(work_order_id);
+create index if not exists invoice_drafts_company_status_idx on public.invoice_drafts(company_id, status);
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -151,22 +174,31 @@ begin
 end;
 $$;
 
+drop trigger if exists companies_set_updated_at on public.companies;
 create trigger companies_set_updated_at before update on public.companies
 for each row execute function public.set_updated_at();
+drop trigger if exists profiles_set_updated_at on public.profiles;
 create trigger profiles_set_updated_at before update on public.profiles
 for each row execute function public.set_updated_at();
+drop trigger if exists customers_set_updated_at on public.customers;
 create trigger customers_set_updated_at before update on public.customers
 for each row execute function public.set_updated_at();
+drop trigger if exists sites_set_updated_at on public.sites;
 create trigger sites_set_updated_at before update on public.sites
 for each row execute function public.set_updated_at();
+drop trigger if exists work_orders_set_updated_at on public.work_orders;
 create trigger work_orders_set_updated_at before update on public.work_orders
 for each row execute function public.set_updated_at();
+drop trigger if exists time_entries_set_updated_at on public.time_entries;
 create trigger time_entries_set_updated_at before update on public.time_entries
 for each row execute function public.set_updated_at();
+drop trigger if exists material_entries_set_updated_at on public.material_entries;
 create trigger material_entries_set_updated_at before update on public.material_entries
 for each row execute function public.set_updated_at();
+drop trigger if exists work_order_notes_set_updated_at on public.work_order_notes;
 create trigger work_order_notes_set_updated_at before update on public.work_order_notes
 for each row execute function public.set_updated_at();
+drop trigger if exists invoice_drafts_set_updated_at on public.invoice_drafts;
 create trigger invoice_drafts_set_updated_at before update on public.invoice_drafts
 for each row execute function public.set_updated_at();
 
@@ -230,24 +262,29 @@ alter table public.work_order_notes enable row level security;
 alter table public.work_order_photos enable row level security;
 alter table public.invoice_drafts enable row level security;
 
+drop policy if exists "company members can view their company" on public.companies;
 create policy "company members can view their company"
 on public.companies for select
 using (id = public.current_company_id());
 
+drop policy if exists "profiles are visible inside company" on public.profiles;
 create policy "profiles are visible inside company"
 on public.profiles for select
 using (company_id = public.current_company_id());
 
+drop policy if exists "admins and managers manage company profiles" on public.profiles;
 create policy "admins and managers manage company profiles"
 on public.profiles for all
 using (company_id = public.current_company_id() and public.is_admin_or_manager())
 with check (company_id = public.current_company_id() and public.is_admin_or_manager());
 
+drop policy if exists "admins and managers manage customers" on public.customers;
 create policy "admins and managers manage customers"
 on public.customers for all
 using (company_id = public.current_company_id() and public.is_admin_or_manager())
 with check (company_id = public.current_company_id() and public.is_admin_or_manager());
 
+drop policy if exists "electricians view customers on assigned work orders" on public.customers;
 create policy "electricians view customers on assigned work orders"
 on public.customers for select
 using (
@@ -261,11 +298,13 @@ using (
   )
 );
 
+drop policy if exists "admins and managers manage sites" on public.sites;
 create policy "admins and managers manage sites"
 on public.sites for all
 using (company_id = public.current_company_id() and public.is_admin_or_manager())
 with check (company_id = public.current_company_id() and public.is_admin_or_manager());
 
+drop policy if exists "electricians view sites on assigned work orders" on public.sites;
 create policy "electricians view sites on assigned work orders"
 on public.sites for select
 using (
@@ -279,25 +318,30 @@ using (
   )
 );
 
+drop policy if exists "admins and managers manage work orders" on public.work_orders;
 create policy "admins and managers manage work orders"
 on public.work_orders for all
 using (company_id = public.current_company_id() and public.is_admin_or_manager())
 with check (company_id = public.current_company_id() and public.is_admin_or_manager());
 
+drop policy if exists "electricians view assigned work orders" on public.work_orders;
 create policy "electricians view assigned work orders"
 on public.work_orders for select
 using (company_id = public.current_company_id() and assigned_to = auth.uid());
 
+drop policy if exists "electricians update assigned work order status" on public.work_orders;
 create policy "electricians update assigned work order status"
 on public.work_orders for update
 using (company_id = public.current_company_id() and assigned_to = auth.uid())
 with check (company_id = public.current_company_id() and assigned_to = auth.uid());
 
+drop policy if exists "admins and managers manage time entries" on public.time_entries;
 create policy "admins and managers manage time entries"
 on public.time_entries for all
 using (company_id = public.current_company_id() and public.is_admin_or_manager())
 with check (company_id = public.current_company_id() and public.is_admin_or_manager());
 
+drop policy if exists "electricians manage time on assigned work orders" on public.time_entries;
 create policy "electricians manage time on assigned work orders"
 on public.time_entries for all
 using (company_id = public.current_company_id() and public.can_access_work_order(work_order_id))
@@ -307,11 +351,13 @@ with check (
   and public.can_access_work_order(work_order_id)
 );
 
+drop policy if exists "admins and managers manage materials" on public.material_entries;
 create policy "admins and managers manage materials"
 on public.material_entries for all
 using (company_id = public.current_company_id() and public.is_admin_or_manager())
 with check (company_id = public.current_company_id() and public.is_admin_or_manager());
 
+drop policy if exists "electricians manage materials on assigned work orders" on public.material_entries;
 create policy "electricians manage materials on assigned work orders"
 on public.material_entries for all
 using (company_id = public.current_company_id() and public.can_access_work_order(work_order_id))
@@ -321,11 +367,13 @@ with check (
   and public.can_access_work_order(work_order_id)
 );
 
+drop policy if exists "admins and managers manage notes" on public.work_order_notes;
 create policy "admins and managers manage notes"
 on public.work_order_notes for all
 using (company_id = public.current_company_id() and public.is_admin_or_manager())
 with check (company_id = public.current_company_id() and public.is_admin_or_manager());
 
+drop policy if exists "electricians manage notes on assigned work orders" on public.work_order_notes;
 create policy "electricians manage notes on assigned work orders"
 on public.work_order_notes for all
 using (company_id = public.current_company_id() and public.can_access_work_order(work_order_id))
@@ -335,11 +383,13 @@ with check (
   and public.can_access_work_order(work_order_id)
 );
 
+drop policy if exists "admins and managers manage photos" on public.work_order_photos;
 create policy "admins and managers manage photos"
 on public.work_order_photos for all
 using (company_id = public.current_company_id() and public.is_admin_or_manager())
 with check (company_id = public.current_company_id() and public.is_admin_or_manager());
 
+drop policy if exists "electricians manage photos on assigned work orders" on public.work_order_photos;
 create policy "electricians manage photos on assigned work orders"
 on public.work_order_photos for all
 using (company_id = public.current_company_id() and public.can_access_work_order(work_order_id))
@@ -349,6 +399,7 @@ with check (
   and public.can_access_work_order(work_order_id)
 );
 
+drop policy if exists "admins and managers manage invoice drafts" on public.invoice_drafts;
 create policy "admins and managers manage invoice drafts"
 on public.invoice_drafts for all
 using (company_id = public.current_company_id() and public.is_admin_or_manager())
