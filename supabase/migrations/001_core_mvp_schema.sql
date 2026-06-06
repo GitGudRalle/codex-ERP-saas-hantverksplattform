@@ -212,14 +212,15 @@ as $$
   select company_id from public.profiles where id = auth.uid()
 $$;
 
+drop function if exists public.current_role();
 create or replace function public.current_role()
-returns public.profile_role
+returns text
 language sql
 stable
 security definer
 set search_path = public
 as $$
-  select role from public.profiles where id = auth.uid()
+  select role::text from public.profiles where id = auth.uid()
 $$;
 
 create or replace function public.is_admin_or_manager()
