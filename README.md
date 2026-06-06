@@ -75,3 +75,9 @@ It includes the MVP tables, indexes, update triggers, and Row Level Security pol
 Security notes are documented in [docs/database-security.md](docs/database-security.md).
 
 Supabase setup and recovery from partial migration attempts is documented in [docs/supabase-setup.md](docs/supabase-setup.md).
+
+Development seed data is available at:
+
+```text
+supabase/dev_bootstrap_seed.sql
+```
