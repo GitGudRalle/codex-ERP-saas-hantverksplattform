@@ -58,6 +58,7 @@ This setup includes the initial app shell and the first live Supabase-backed MVP
 - Arbetsordrar with customer request to work order flow, assignment, and completed-job review
 - Mina jobb with mobile-first status changes, time reporting, material reporting, and notes
 - Fakturaunderlag with review of ready work orders and saved invoice text
+- Role-aware navigation and an electrician-focused start card
 - Supabase migration SQL for the core company-scoped data model, hardened RLS policies, and one invoice draft per work order
 
 Photo storage and real invoice integrations are intentionally not implemented yet.

@@ -2,15 +2,15 @@
 
 Use this file when a task affects more than 3 files, changes database schema, changes auth/security, or introduces a new product module.
 
-## Active plan: Invoice draft hardening and field notes
+## Active plan: Invoice draft hardening, field notes, and role UX
 
 ## Goal
 
-Harden invoice draft persistence and add field notes to the mobile electrician workflow.
+Harden invoice draft persistence, add field notes to the mobile electrician workflow, and reduce navigation noise by role.
 
 ## User story
 
-As a small electrical company, I want each work order to have at most one invoice draft and let electricians add notes in the field, so that invoice basis and documentation stay tidy.
+As a small electrical company, I want each work order to have at most one invoice draft, let electricians add notes in the field, and show each role the most relevant workspace, so that daily use stays fast.
 
 ## Scope
 
@@ -19,6 +19,8 @@ Included:
 - Mobile notes form in "Mina jobb"
 - Notes list per assigned work order
 - Zod validation for work order notes
+- Role-aware navigation
+- Electrician-focused dashboard call-to-action
 
 Excluded:
 - Photo storage changes
@@ -44,6 +46,8 @@ Excluded:
 
 - Add a note panel to each mobile job card.
 - Keep note creation fast with one textarea and one save action.
+- Show electricians a direct path to "Mina jobb".
+- Hide admin-only navigation from electrician and logged-out views.
 
 ## Security/RLS considerations
 
@@ -57,7 +61,8 @@ Excluded:
 2. Add work order note validation.
 3. Load notes in "Mina jobb".
 4. Add mobile-friendly note form and note list per job.
-5. Validate lint, typecheck, build, and basic browser smoke.
+5. Add role-aware navigation and electrician start card.
+6. Validate lint, typecheck, build, and basic browser smoke.
 
 ## Validation
 
@@ -70,11 +75,13 @@ Manual checks:
 - Confirm invoice draft uniqueness migration is applied.
 - Confirm "Mina jobb" renders note controls without console errors.
 - Confirm logged-out users remain safely blocked by auth/RLS.
+- Confirm navigation changes by logged-out, electrician, and admin/manager roles where possible.
 
 ## Risks
 
 - Existing duplicate invoice drafts are cleaned by the migration before the unique index is added.
 - Notes are simple text only; photo documentation remains a later step.
+- Role-aware navigation is a UX convenience; RLS remains the security boundary.
 
 ## Plan template
 

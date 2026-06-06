@@ -12,6 +12,11 @@ export function AuthStatus() {
 
   useEffect(() => {
     let isMounted = true;
+    const fallbackTimer = window.setTimeout(() => {
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    }, 3000);
 
     supabase.auth.getUser().then(({ data }) => {
       if (isMounted) {
@@ -29,6 +34,7 @@ export function AuthStatus() {
 
     return () => {
       isMounted = false;
+      window.clearTimeout(fallbackTimer);
       subscription.unsubscribe();
     };
   }, [supabase]);

@@ -42,12 +42,22 @@ export function DashboardSummary() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+    const fallbackTimer = window.setTimeout(() => {
+      if (isMounted) {
+        setSummary(emptySummary);
+        setIsLoading(false);
+      }
+    }, 3000);
+
     async function loadSummary() {
       const { data: userData } = await supabase.auth.getUser();
 
       if (!userData.user) {
-        setSummary(emptySummary);
-        setIsLoading(false);
+        if (isMounted) {
+          setSummary(emptySummary);
+          setIsLoading(false);
+        }
         return;
       }
 
@@ -68,16 +78,23 @@ export function DashboardSummary() {
             .eq("status", "ready_for_invoice"),
         ]);
 
-      setSummary({
-        customers: customersResult.count ?? 0,
-        workOrders: workOrdersResult.count ?? 0,
-        assignedJobs: assignedJobsResult.count ?? 0,
-        readyForInvoice: readyResult.count ?? 0,
-      });
-      setIsLoading(false);
+      if (isMounted) {
+        setSummary({
+          customers: customersResult.count ?? 0,
+          workOrders: workOrdersResult.count ?? 0,
+          assignedJobs: assignedJobsResult.count ?? 0,
+          readyForInvoice: readyResult.count ?? 0,
+        });
+        setIsLoading(false);
+      }
     }
 
     loadSummary();
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(fallbackTimer);
+    };
   }, [supabase]);
 
   const stats = [

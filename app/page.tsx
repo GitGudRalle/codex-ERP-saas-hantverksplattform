@@ -1,4 +1,5 @@
 import { DashboardSummary } from "@/components/dashboard-summary";
+import { RoleStart } from "@/components/role-start";
 
 export default function DashboardPage() {
   return (
@@ -14,6 +15,7 @@ export default function DashboardPage() {
         </p>
       </section>
 
+      <RoleStart />
       <DashboardSummary />
     </div>
   );
