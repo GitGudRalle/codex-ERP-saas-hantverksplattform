@@ -34,6 +34,7 @@ const allowedPhotoMimeTypes = new Set([
   "image/webp",
   "image/heic",
   "image/heif",
+  "application/octet-stream",
 ]);
 
 function formatScheduled(value: string | null) {
@@ -49,10 +50,6 @@ function formatScheduled(value: string | null) {
 }
 
 function getPhotoMimeType(file: File) {
-  if (file.type) {
-    return file.type;
-  }
-
   const extension = file.name.split(".").pop()?.toLowerCase();
 
   if (extension === "jpg" || extension === "jpeg") {
@@ -73,6 +70,10 @@ function getPhotoMimeType(file: File) {
 
   if (extension === "heif") {
     return "image/heif";
+  }
+
+  if (file.type) {
+    return file.type;
   }
 
   return "";
@@ -380,6 +381,7 @@ export function ElectricianJobs() {
     }
 
     const mimeType = getPhotoMimeType(file);
+    const extension = getPhotoExtension(file);
 
     if (!allowedPhotoMimeTypes.has(mimeType)) {
       setError("Fotot behöver vara JPG, PNG, WebP, HEIC eller HEIF.");
@@ -394,7 +396,6 @@ export function ElectricianJobs() {
     setSavingPhotoId(workOrder.id);
     setError(null);
 
-    const extension = getPhotoExtension(file);
     const storagePath = `${workOrder.company_id}/${workOrder.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
 
     const { error: uploadError } = await supabase.storage
@@ -406,7 +407,9 @@ export function ElectricianJobs() {
       });
 
     if (uploadError) {
-      setError("Kunde inte ladda upp fotot. Kontrollera behörighet och filtyp.");
+      setError(
+        `Kunde inte ladda upp fotot: ${uploadError.message}. Kontrollera att migration 007 är körd i Supabase.`,
+      );
       setSavingPhotoId(null);
       return false;
     }
@@ -423,7 +426,9 @@ export function ElectricianJobs() {
 
     if (insertError) {
       await supabase.storage.from(photoBucket).remove([storagePath]);
-      setError("Fotot laddades upp, men kunde inte kopplas till arbetsordern.");
+      setError(
+        `Fotot laddades upp, men kunde inte kopplas till arbetsordern: ${insertError.message}.`,
+      );
       setSavingPhotoId(null);
       return false;
     }

@@ -12,6 +12,7 @@ supabase/migrations/003_rls_policy_hardening.sql
 supabase/migrations/004_private_rls_function_grants.sql
 supabase/migrations/005_unique_invoice_draft_per_work_order.sql
 supabase/migrations/006_work_order_photo_storage.sql
+supabase/migrations/007_work_order_photo_upload_policy_fix.sql
 ```
 
 Choose **Run and enable RLS** when Supabase asks.

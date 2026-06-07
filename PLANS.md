@@ -79,6 +79,7 @@ Manual checks:
 
 - HEIC preview support depends on the browser; the app still stores the file and offers an open link.
 - Large phone photos may hit the 10 MB limit until compression is added.
+- Some mobile browsers report HEIC files with generic MIME types; migration `007` and client-side MIME normalization handle that case.
 
 ## Plan template
 
