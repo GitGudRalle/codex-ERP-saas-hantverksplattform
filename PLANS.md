@@ -2,30 +2,29 @@
 
 Use this file when a task affects more than 3 files, changes database schema, changes auth/security, or introduces a new product module.
 
-## Active plan: Correct field reporting mistakes
+## Active plan: Edit customer and site details
 
 ## Goal
 
-Let electricians correct mistakes in reported time, material, notes, and photos from the mobile field workflow.
+Let admin and manager update customer contact details and site access information without leaving the customer detail page.
 
 ## User story
 
-As an electrician, I want to remove an incorrect report row directly from `Mina jobb`, so that admin does not invoice wrong time, material, notes, or photos.
+As an admin or manager, I want to correct customer phone, email, address, and access notes, so that electricians have accurate field information.
 
 ## Scope
 
 Included:
-- Delete reported time entries
-- Delete reported material entries
-- Delete work order notes
-- Delete work order photo metadata and storage object
-- Clear loading states and Supabase error messages
+- Edit customer name, phone, email, and customer type
+- Edit site name, address, city, and access notes
+- Success/error feedback on customer detail page
+- Role-gated forms for admin/manager
 
 Excluded:
 - New schema changes
-- Editing existing rows inline
-- Undo/restore after delete
-- Admin correction screens
+- Creating additional sites from customer detail
+- Deleting customers or sites
+- Advanced validation beyond MVP basics
 
 ## Files likely affected
 
@@ -36,26 +35,26 @@ Excluded:
 ## Data model changes
 
 - No schema changes.
-- Uses existing RLS delete policies for reporting tables and storage objects.
+- Uses existing customer and site tables with RLS update policies.
 
 ## UI changes
 
-- Add small delete buttons next to reported rows in `Mina jobb`.
-- Keep delete controls visible but secondary to reporting actions.
-- Show per-row deleting state.
+- Add edit forms to customer detail.
+- Keep forms visible only for admin/manager.
+- Preserve mobile-friendly large inputs and buttons.
 
 ## Security/RLS considerations
 
-- Deletes are enforced by existing RLS.
-- Electricians can only delete reporting connected to assigned work orders.
-- Photo deletion removes database metadata and then attempts storage cleanup.
+- Updates are enforced by existing RLS.
+- Electricians do not see edit forms.
+- Admin/manager can only update company-scoped data.
 
 ## Implementation steps
 
-1. Add delete handlers for time, material, notes, and photos.
-2. Add row-level delete buttons in the field workflow.
-3. Clean up storage objects for deleted photos.
-4. Keep UI states clear on mobile.
+1. Add customer update handler.
+2. Add site update handler.
+3. Render role-gated forms.
+4. Add feedback states.
 5. Validate lint, typecheck, build, and browser smoke.
 
 ## Validation
@@ -66,14 +65,13 @@ Commands to run:
 - npm run build
 
 Manual checks:
-- Confirm delete buttons render in reported rows.
-- Confirm loading state prevents repeat taps.
-- Confirm RLS errors surface clearly if deletion is denied.
+- Confirm logged-out customer detail still renders safely.
+- Confirm electrician users do not see edit forms.
+- Confirm update errors surface clearly if RLS denies the write.
 
 ## Risks
 
-- Deletes are currently immediate; a future confirmation or undo may be useful once real users test the flow.
-- If storage deletion fails after metadata deletion, the UI reports it but the orphaned storage object may remain.
+- Forms are simple and visible inline; if customer detail grows, we may later split edit sections into collapsible panels.
 
 ## Plan template
 

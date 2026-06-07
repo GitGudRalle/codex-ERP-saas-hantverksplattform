@@ -35,6 +35,11 @@ function formatDate(value: string | null | undefined) {
   }).format(new Date(value));
 }
 
+function getFormValue(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return typeof value === "string" ? value.trim() : "";
+}
+
 export function CustomerDetail({ customerId }: CustomerDetailProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
@@ -43,6 +48,12 @@ export function CustomerDetail({ customerId }: CustomerDetailProps) {
   const [workOrders, setWorkOrders] = useState<WorkOrderRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [savingSiteId, setSavingSiteId] = useState<string | null>(null);
+
+  const canManage =
+    profile?.role === "admin" || profile?.role === "manager";
 
   const loadCustomer = useCallback(async () => {
     setIsLoading(true);
@@ -109,6 +120,82 @@ export function CustomerDetail({ customerId }: CustomerDetailProps) {
   useEffect(() => {
     loadCustomer();
   }, [loadCustomer]);
+
+  async function updateCustomer(formData: FormData) {
+    if (!customer || !canManage) {
+      setError("Du behÃ¶ver vara admin eller manager fÃ¶r att uppdatera kund.");
+      return;
+    }
+
+    const name = getFormValue(formData, "name");
+
+    if (name.length < 2) {
+      setError("Ange kundens namn.");
+      return;
+    }
+
+    setSavingCustomer(true);
+    setError(null);
+    setMessage(null);
+
+    const { error: updateError } = await supabase
+      .from("customers")
+      .update({
+        customer_type: getFormValue(formData, "customer_type") || "private",
+        email: getFormValue(formData, "email") || null,
+        name,
+        phone: getFormValue(formData, "phone") || null,
+      })
+      .eq("id", customer.id);
+
+    if (updateError) {
+      setError(`Kunde inte uppdatera kunden: ${updateError.message}.`);
+      setSavingCustomer(false);
+      return;
+    }
+
+    setMessage("Kunduppgifter uppdaterade.");
+    await loadCustomer();
+    setSavingCustomer(false);
+  }
+
+  async function updateSite(site: SiteRow, formData: FormData) {
+    if (!canManage) {
+      setError("Du behÃ¶ver vara admin eller manager fÃ¶r att uppdatera arbetsplats.");
+      return;
+    }
+
+    const address = getFormValue(formData, "address");
+
+    if (address.length < 3) {
+      setError("Ange arbetsplatsens adress.");
+      return;
+    }
+
+    setSavingSiteId(site.id);
+    setError(null);
+    setMessage(null);
+
+    const { error: updateError } = await supabase
+      .from("sites")
+      .update({
+        access_notes: getFormValue(formData, "access_notes") || null,
+        address,
+        city: getFormValue(formData, "city") || null,
+        name: getFormValue(formData, "name") || null,
+      })
+      .eq("id", site.id);
+
+    if (updateError) {
+      setError(`Kunde inte uppdatera arbetsplatsen: ${updateError.message}.`);
+      setSavingSiteId(null);
+      return;
+    }
+
+    setMessage("Arbetsplats uppdaterad.");
+    await loadCustomer();
+    setSavingSiteId(null);
+  }
 
   if (isLoading) {
     return (
@@ -192,6 +279,18 @@ export function CustomerDetail({ customerId }: CustomerDetailProps) {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+        {error ? (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 lg:col-span-2">
+            {error}
+          </p>
+        ) : null}
+
+        {message ? (
+          <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 lg:col-span-2">
+            {message}
+          </p>
+        ) : null}
+
         <article className="rounded-lg border border-line bg-white p-5">
           <h2 className="text-lg font-semibold text-ink">Kontakt</h2>
           <div className="mt-4 space-y-3 text-sm text-slate-700">
@@ -204,6 +303,68 @@ export function CustomerDetail({ customerId }: CustomerDetailProps) {
               {customer.email ?? "Saknas"}
             </p>
           </div>
+          {canManage ? (
+            <form
+              className="mt-5 grid gap-3"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                await updateCustomer(new FormData(event.currentTarget));
+              }}
+            >
+              <label>
+                <span className="text-sm font-medium text-slate-700">Namn</span>
+                <input
+                  className="mt-1 min-h-11 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                  defaultValue={customer.name}
+                  name="name"
+                />
+              </label>
+              <label>
+                <span className="text-sm font-medium text-slate-700">
+                  Telefon
+                </span>
+                <input
+                  className="mt-1 min-h-11 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                  defaultValue={customer.phone ?? ""}
+                  name="phone"
+                  type="tel"
+                />
+              </label>
+              <label>
+                <span className="text-sm font-medium text-slate-700">
+                  E-post
+                </span>
+                <input
+                  className="mt-1 min-h-11 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                  defaultValue={customer.email ?? ""}
+                  name="email"
+                  type="email"
+                />
+              </label>
+              <label>
+                <span className="text-sm font-medium text-slate-700">
+                  Kundtyp
+                </span>
+                <select
+                  className="mt-1 min-h-11 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                  defaultValue={customer.customer_type}
+                  name="customer_type"
+                >
+                  {Object.entries(customerTypeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                className="min-h-11 rounded-lg bg-action px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={savingCustomer}
+              >
+                {savingCustomer ? "Sparar" : "Spara kunduppgifter"}
+              </button>
+            </form>
+          ) : null}
         </article>
 
         <article className="rounded-lg border border-line bg-white p-5">
@@ -232,6 +393,71 @@ export function CustomerDetail({ customerId }: CustomerDetailProps) {
                     <p className="mt-2 text-sm text-slate-600">
                       Tillträde: {site.access_notes}
                     </p>
+                  ) : null}
+                  {canManage ? (
+                    <form
+                      className="mt-4 grid gap-3"
+                      onSubmit={async (event) => {
+                        event.preventDefault();
+                        await updateSite(
+                          site,
+                          new FormData(event.currentTarget),
+                        );
+                      }}
+                    >
+                      <label>
+                        <span className="text-sm font-medium text-slate-700">
+                          Namn
+                        </span>
+                        <input
+                          className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                          defaultValue={site.name ?? ""}
+                          name="name"
+                          placeholder="Ex. Villa, lager, butik"
+                        />
+                      </label>
+                      <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Adress
+                          </span>
+                          <input
+                            className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                            defaultValue={site.address}
+                            name="address"
+                          />
+                        </label>
+                        <label>
+                          <span className="text-sm font-medium text-slate-700">
+                            Ort
+                          </span>
+                          <input
+                            className="mt-1 min-h-11 w-full rounded-lg border border-line bg-white px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                            defaultValue={site.city ?? ""}
+                            name="city"
+                          />
+                        </label>
+                      </div>
+                      <label>
+                        <span className="text-sm font-medium text-slate-700">
+                          TilltrÃ¤de
+                        </span>
+                        <textarea
+                          className="mt-1 min-h-24 w-full rounded-lg border border-line bg-white px-3 py-2 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                          defaultValue={site.access_notes ?? ""}
+                          name="access_notes"
+                          placeholder="Kod, nyckel, port, kontaktperson eller annat montÃ¶ren behÃ¶ver veta."
+                        />
+                      </label>
+                      <button
+                        className="min-h-11 rounded-lg bg-action px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={savingSiteId === site.id}
+                      >
+                        {savingSiteId === site.id
+                          ? "Sparar"
+                          : "Spara arbetsplats"}
+                      </button>
+                    </form>
                   ) : null}
                 </div>
               ))

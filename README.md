@@ -55,7 +55,7 @@ This setup includes the initial app shell and the first live Supabase-backed MVP
 
 - Dashboard
 - Kunder
-- Customer detail page with contact info, sites, and linked work orders
+- Customer detail page with editable contact info, sites, access notes, and linked work orders
 - Arbetsordrar with customer request to work order flow, assignment, and completed-job review
 - Work order detail page with customer, site, reporting, documentation, and invoice summary
 - Mina jobb with mobile-first status changes, time reporting, material reporting, notes, photo upload, and correction deletes
