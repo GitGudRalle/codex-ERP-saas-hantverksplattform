@@ -2,66 +2,59 @@
 
 Use this file when a task affects more than 3 files, changes database schema, changes auth/security, or introduces a new product module.
 
-## Active plan: Work order photo documentation
+## Active plan: Invoice review documentation
 
 ## Goal
 
-Allow electricians to upload work order photos from mobile devices and make the documentation visible through review and detail flows.
+Make invoice draft review show enough job documentation for admin/manager to catch missing reporting before marking an invoice basis ready.
 
 ## User story
 
-As an electrician, I want to add photos from my phone to an assigned work order, so that documentation follows the job into admin review and invoice preparation.
+As an admin or manager, I want to see time, material, and photo documentation in the invoice draft flow, so that I can create invoice basis without opening several separate pages.
 
 ## Scope
 
 Included:
-- Private Supabase Storage bucket for work order photos
-- Storage RLS policies scoped by company and work order access
-- Mobile-compatible upload UI in `Mina jobb`
-- Photo metadata saved in `work_order_photos`
-- Photo gallery in `Mina jobb`, work order detail, and completed-job review
+- Photo documentation in the invoice draft flow
+- Per-work-order warnings for missing time, material, and photos
+- Summary counts for ready drafts and missing reporting
+- Existing private photo gallery reused through signed URLs
 
 Excluded:
-- Native camera app integration
-- Offline upload queue
-- Image compression/transcoding
-- Sending real invoices
+- New schema changes
+- Real invoice sending
 - Fortnox/Visma export
 
 ## Files likely affected
 
-- `supabase/migrations/**`
-- `app/**`
 - `components/**`
 - `README.md`
 - `PLANS.md`
-- `docs/**`
 
 ## Data model changes
 
-- Adds a private Supabase Storage bucket and storage object policies.
-- Uses the existing `work_order_photos` table for metadata.
+- No schema changes.
+- Uses existing `work_order_photos`, `time_entries`, `material_entries`, and `invoice_drafts`.
 
 ## UI changes
 
-- Add photo upload section in each mobile job card.
-- Show uploaded photos with signed URLs.
-- Keep controls large enough for iPhone and Android mobile browsers.
+- Add invoice review summary cards.
+- Show warning badges on invoice draft cards.
+- Show photo gallery inside the invoice draft review card.
 
 ## Security/RLS considerations
 
-- The storage bucket is private.
-- Object paths include `company_id/work_order_id/...`.
-- Storage policies call private helper functions to verify company and work order access.
-- Table metadata remains protected by existing `work_order_photos` RLS policies.
+- Reads are still enforced by existing Supabase RLS.
+- Photo previews still use signed URLs from the private storage bucket.
+- No new policies are required.
 
 ## Implementation steps
 
-1. Add storage bucket and object policies.
-2. Add reusable signed-photo gallery component.
-3. Add mobile upload form in `Mina jobb`.
-4. Show photos in detail and review surfaces.
-5. Validate lint, typecheck, build, browser smoke, and Supabase advisors.
+1. Load work order photos in the invoice draft flow.
+2. Add review summary counts.
+3. Add missing-data warning badges per work order.
+4. Render photo documentation in each invoice draft card.
+5. Validate lint, typecheck, build, and browser smoke.
 
 ## Validation
 
@@ -71,15 +64,14 @@ Commands to run:
 - npm run build
 
 Manual checks:
-- Confirm logged-out users cannot access photo UI.
-- Confirm upload accepts common iPhone/Android image formats.
-- Confirm gallery renders signed URLs without public bucket access.
+- Confirm invoice draft page renders logged-out and logged-in states.
+- Confirm warnings show when time, material, or photos are missing.
+- Confirm photo gallery can render without public bucket access.
 
 ## Risks
 
-- HEIC preview support depends on the browser; the app still stores the file and offers an open link.
-- Large phone photos may hit the 10 MB limit until compression is added.
-- Some mobile browsers report HEIC files with generic MIME types; migration `007` and client-side MIME normalization handle that case.
+- HEIC previews may still depend on browser support; the signed open link remains available.
+- Invoice review now loads photos in addition to reporting rows, so large future datasets may need pagination.
 
 ## Plan template
 

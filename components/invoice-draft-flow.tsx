@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
+import { WorkOrderPhotoGallery } from "@/components/work-order-photo-gallery";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   CustomerRow,
@@ -10,6 +11,7 @@ import type {
   ProfileRow,
   SiteRow,
   TimeEntryRow,
+  WorkOrderPhotoRow,
   WorkOrderRow,
 } from "@/lib/supabase/types";
 import { invoiceDraftSchema } from "@/lib/validation";
@@ -84,6 +86,7 @@ export function InvoiceDraftFlow() {
   const [workOrders, setWorkOrders] = useState<WorkOrderRow[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntryRow[]>([]);
   const [materialEntries, setMaterialEntries] = useState<MaterialEntryRow[]>([]);
+  const [photos, setPhotos] = useState<WorkOrderPhotoRow[]>([]);
   const [invoiceDrafts, setInvoiceDrafts] = useState<InvoiceDraftRow[]>([]);
   const [draftTexts, setDraftTexts] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -99,6 +102,41 @@ export function InvoiceDraftFlow() {
     [workOrders],
   );
 
+  const reviewSummary = useMemo(() => {
+    return readyWorkOrders.reduce(
+      (summary, workOrder) => {
+        const hasTime = timeEntries.some(
+          (entry) =>
+            entry.work_order_id === workOrder.id && Number(entry.hours) > 0,
+        );
+        const hasMaterial = materialEntries.some(
+          (entry) => entry.work_order_id === workOrder.id,
+        );
+        const hasPhotos = photos.some(
+          (photo) => photo.work_order_id === workOrder.id,
+        );
+        const hasReadyDraft = invoiceDrafts.some(
+          (draft) =>
+            draft.work_order_id === workOrder.id && draft.status === "ready",
+        );
+
+        return {
+          missingDocumentation:
+            summary.missingDocumentation + (hasPhotos ? 0 : 1),
+          missingMaterial: summary.missingMaterial + (hasMaterial ? 0 : 1),
+          missingTime: summary.missingTime + (hasTime ? 0 : 1),
+          readyDrafts: summary.readyDrafts + (hasReadyDraft ? 1 : 0),
+        };
+      },
+      {
+        missingDocumentation: 0,
+        missingMaterial: 0,
+        missingTime: 0,
+        readyDrafts: 0,
+      },
+    );
+  }, [invoiceDrafts, materialEntries, photos, readyWorkOrders, timeEntries]);
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -112,6 +150,7 @@ export function InvoiceDraftFlow() {
       setWorkOrders([]);
       setTimeEntries([]);
       setMaterialEntries([]);
+      setPhotos([]);
       setInvoiceDrafts([]);
       setIsLoading(false);
       return;
@@ -135,6 +174,7 @@ export function InvoiceDraftFlow() {
       workOrdersResult,
       timeEntriesResult,
       materialEntriesResult,
+      photosResult,
       invoiceDraftsResult,
     ] = await Promise.all([
       supabase.from("customers").select("*").order("created_at", {
@@ -154,6 +194,9 @@ export function InvoiceDraftFlow() {
       supabase.from("material_entries").select("*").order("created_at", {
         ascending: false,
       }),
+      supabase.from("work_order_photos").select("*").order("created_at", {
+        ascending: false,
+      }),
       supabase.from("invoice_drafts").select("*").order("updated_at", {
         ascending: false,
       }),
@@ -165,6 +208,7 @@ export function InvoiceDraftFlow() {
       workOrdersResult.error ||
       timeEntriesResult.error ||
       materialEntriesResult.error ||
+      photosResult.error ||
       invoiceDraftsResult.error
     ) {
       setError("Kunde inte hämta fakturaunderlag från Supabase.");
@@ -178,6 +222,7 @@ export function InvoiceDraftFlow() {
     const nextTimeEntries = (timeEntriesResult.data ?? []) as TimeEntryRow[];
     const nextMaterialEntries = (materialEntriesResult.data ??
       []) as MaterialEntryRow[];
+    const nextPhotos = (photosResult.data ?? []) as WorkOrderPhotoRow[];
     const nextInvoiceDrafts = (invoiceDraftsResult.data ??
       []) as InvoiceDraftRow[];
 
@@ -187,6 +232,7 @@ export function InvoiceDraftFlow() {
     setWorkOrders(nextWorkOrders);
     setTimeEntries(nextTimeEntries);
     setMaterialEntries(nextMaterialEntries);
+    setPhotos(nextPhotos);
     setInvoiceDrafts(nextInvoiceDrafts);
     setDraftTexts((current) => {
       const nextTexts = { ...current };
@@ -297,6 +343,10 @@ export function InvoiceDraftFlow() {
     return materialEntries.filter((entry) => entry.work_order_id === workOrderId);
   }
 
+  function getPhotos(workOrderId: string) {
+    return photos.filter((photo) => photo.work_order_id === workOrderId);
+  }
+
   function getInvoiceDraft(workOrderId: string) {
     return invoiceDrafts.find((draft) => draft.work_order_id === workOrderId);
   }
@@ -353,6 +403,33 @@ export function InvoiceDraftFlow() {
           </span>
         </div>
 
+        <div className="mt-4 grid gap-3 sm:grid-cols-4">
+          <div className="rounded-lg border border-line bg-field p-3">
+            <p className="text-sm text-slate-600">Redo underlag</p>
+            <p className="mt-1 text-2xl font-semibold text-ink">
+              {reviewSummary.readyDrafts}
+            </p>
+          </div>
+          <div className="rounded-lg border border-line bg-field p-3">
+            <p className="text-sm text-slate-600">Saknar tid</p>
+            <p className="mt-1 text-2xl font-semibold text-ink">
+              {reviewSummary.missingTime}
+            </p>
+          </div>
+          <div className="rounded-lg border border-line bg-field p-3">
+            <p className="text-sm text-slate-600">Saknar material</p>
+            <p className="mt-1 text-2xl font-semibold text-ink">
+              {reviewSummary.missingMaterial}
+            </p>
+          </div>
+          <div className="rounded-lg border border-line bg-field p-3">
+            <p className="text-sm text-slate-600">Saknar foto</p>
+            <p className="mt-1 text-2xl font-semibold text-ink">
+              {reviewSummary.missingDocumentation}
+            </p>
+          </div>
+        </div>
+
         <div className="mt-4 space-y-4">
           {!isLoading && readyWorkOrders.length === 0 ? (
             <p className="rounded-lg border border-line bg-field px-3 py-3 text-sm text-slate-600">
@@ -373,11 +450,15 @@ export function InvoiceDraftFlow() {
                 const site = getSite(workOrder.site_id);
                 const jobTimeEntries = getTimeEntries(workOrder.id);
                 const jobMaterialEntries = getMaterialEntries(workOrder.id);
+                const jobPhotos = getPhotos(workOrder.id);
                 const existingDraft = getInvoiceDraft(workOrder.id);
                 const totalHours = jobTimeEntries.reduce(
                   (sum, entry) => sum + Number(entry.hours),
                   0,
                 );
+                const missingTime = totalHours <= 0;
+                const missingMaterial = jobMaterialEntries.length === 0;
+                const missingPhotos = jobPhotos.length === 0;
 
                 return (
                   <article
@@ -429,6 +510,30 @@ export function InvoiceDraftFlow() {
                         </p>
                       </div>
                     </div>
+
+                    {missingTime || missingMaterial || missingPhotos ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {missingTime ? (
+                          <span className="inline-flex min-h-8 items-center rounded-full border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-900">
+                            Saknar rapporterad tid
+                          </span>
+                        ) : null}
+                        {missingMaterial ? (
+                          <span className="inline-flex min-h-8 items-center rounded-full border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-900">
+                            Inget material rapporterat
+                          </span>
+                        ) : null}
+                        {missingPhotos ? (
+                          <span className="inline-flex min-h-8 items-center rounded-full border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-900">
+                            Saknar fotodokumentation
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">
+                        Tid, material och fotodokumentation finns.
+                      </p>
+                    )}
 
                     <div className="mt-4 grid gap-3 lg:grid-cols-2">
                       <section className="rounded-lg border border-line bg-white p-3">
@@ -482,6 +587,24 @@ export function InvoiceDraftFlow() {
                         </div>
                       </section>
                     </div>
+
+                    <section className="mt-4 rounded-lg border border-line bg-white p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <h4 className="text-sm font-semibold text-ink">
+                          Fotodokumentation
+                        </h4>
+                        <span className="text-sm font-medium text-slate-600">
+                          {jobPhotos.length} st
+                        </span>
+                      </div>
+                      <div className="mt-3">
+                        <WorkOrderPhotoGallery
+                          emptyText="Inga foton finns på arbetsordern."
+                          maxPhotos={4}
+                          photos={jobPhotos}
+                        />
+                      </div>
+                    </section>
 
                     <label className="mt-4 block">
                       <span className="text-sm font-semibold text-ink">
