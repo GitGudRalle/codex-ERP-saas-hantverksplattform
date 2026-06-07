@@ -2,29 +2,29 @@
 
 Use this file when a task affects more than 3 files, changes database schema, changes auth/security, or introduces a new product module.
 
-## Active plan: Edit customer and site details
+## Active plan: Mark invoice basis invoiced
 
 ## Goal
 
-Let admin and manager update customer contact details and site access information without leaving the customer detail page.
+Let admin and manager close the MVP flow by marking a reviewed invoice basis as invoiced.
 
 ## User story
 
-As an admin or manager, I want to correct customer phone, email, address, and access notes, so that electricians have accurate field information.
+As an admin or manager, I want to mark a work order as invoiced after saving an invoice basis, so that it leaves the ready-for-invoice queue.
 
 ## Scope
 
 Included:
-- Edit customer name, phone, email, and customer type
-- Edit site name, address, city, and access notes
-- Success/error feedback on customer detail page
-- Role-gated forms for admin/manager
+- Mark invoice draft as exported
+- Mark work order as invoiced
+- Keep real invoice sending outside the MVP
+- Require an existing invoice draft before closing the work order
 
 Excluded:
 - New schema changes
-- Creating additional sites from customer detail
-- Deleting customers or sites
-- Advanced validation beyond MVP basics
+- Sending a real invoice
+- Fortnox/Visma export
+- Accounting integration
 
 ## Files likely affected
 
@@ -35,26 +35,26 @@ Excluded:
 ## Data model changes
 
 - No schema changes.
-- Uses existing customer and site tables with RLS update policies.
+- Uses existing `invoice_drafts.status` and `work_orders.status`.
 
 ## UI changes
 
-- Add edit forms to customer detail.
-- Keep forms visible only for admin/manager.
-- Preserve mobile-friendly large inputs and buttons.
+- Add "Markera fakturerad" action to invoice draft cards.
+- Disable the action until an invoice draft exists.
+- Remove invoiced work orders from the ready-for-invoice queue after reload.
 
 ## Security/RLS considerations
 
 - Updates are enforced by existing RLS.
-- Electricians do not see edit forms.
-- Admin/manager can only update company-scoped data.
+- Admin/manager can update invoice drafts and work orders inside their company.
+- Electricians cannot access invoice draft flow.
 
 ## Implementation steps
 
-1. Add customer update handler.
-2. Add site update handler.
-3. Render role-gated forms.
-4. Add feedback states.
+1. Add invoicing state and handler.
+2. Update invoice draft to exported.
+3. Update work order to invoiced.
+4. Add action button and feedback.
 5. Validate lint, typecheck, build, and browser smoke.
 
 ## Validation
@@ -65,13 +65,13 @@ Commands to run:
 - npm run build
 
 Manual checks:
-- Confirm logged-out customer detail still renders safely.
-- Confirm electrician users do not see edit forms.
-- Confirm update errors surface clearly if RLS denies the write.
+- Confirm button is disabled until a draft exists.
+- Confirm invoiced work order leaves the ready queue.
+- Confirm RLS errors surface clearly if update is denied.
 
 ## Risks
 
-- Forms are simple and visible inline; if customer detail grows, we may later split edit sections into collapsible panels.
+- This does not send a real invoice; it only records MVP workflow state.
 
 ## Plan template
 

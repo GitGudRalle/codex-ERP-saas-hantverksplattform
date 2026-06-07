@@ -91,6 +91,7 @@ export function InvoiceDraftFlow() {
   const [draftTexts, setDraftTexts] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [invoicingId, setInvoicingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -325,6 +326,54 @@ export function InvoiceDraftFlow() {
     );
     await loadData();
     setSavingId(null);
+  }
+
+  async function markWorkOrderInvoiced(workOrder: WorkOrderRow) {
+    if (!profile || !canManage) {
+      setError("Du behÃ¶ver vara admin eller manager fÃ¶r att markera fakturerad.");
+      return;
+    }
+
+    const existingDraft = getInvoiceDraft(workOrder.id);
+
+    if (!existingDraft) {
+      setError("Spara ett fakturaunderlag innan arbetsordern markeras fakturerad.");
+      return;
+    }
+
+    setInvoicingId(workOrder.id);
+    setError(null);
+    setMessage(null);
+
+    const { error: draftError } = await supabase
+      .from("invoice_drafts")
+      .update({
+        status: "exported",
+      })
+      .eq("id", existingDraft.id);
+
+    if (draftError) {
+      setError(`Kunde inte uppdatera fakturaunderlaget: ${draftError.message}.`);
+      setInvoicingId(null);
+      return;
+    }
+
+    const { error: workOrderError } = await supabase
+      .from("work_orders")
+      .update({
+        status: "invoiced",
+      })
+      .eq("id", workOrder.id);
+
+    if (workOrderError) {
+      setError(`Kunde inte markera arbetsordern fakturerad: ${workOrderError.message}.`);
+      setInvoicingId(null);
+      return;
+    }
+
+    setMessage(`${workOrder.title} markerades som fakturerad.`);
+    await loadData();
+    setInvoicingId(null);
   }
 
   function getCustomer(customerId: string) {
@@ -645,6 +694,21 @@ export function InvoiceDraftFlow() {
                         {savingId === workOrder.id
                           ? "Sparar"
                           : "Markera underlag redo"}
+                      </button>
+                      <button
+                        className="min-h-12 w-full rounded-lg border border-line bg-white px-4 text-base font-semibold text-ink hover:border-action disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        disabled={
+                          !canManage ||
+                          !existingDraft ||
+                          savingId === workOrder.id ||
+                          invoicingId === workOrder.id
+                        }
+                        onClick={() => markWorkOrderInvoiced(workOrder)}
+                        type="button"
+                      >
+                        {invoicingId === workOrder.id
+                          ? "Markerar"
+                          : "Markera fakturerad"}
                       </button>
                     </div>
                   </article>
