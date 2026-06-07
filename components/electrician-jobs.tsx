@@ -124,6 +124,7 @@ export function ElectricianJobs() {
   const [savingMaterialId, setSavingMaterialId] = useState<string | null>(null);
   const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
   const [savingPhotoId, setSavingPhotoId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadJobs = useCallback(async () => {
     setIsLoading(true);
@@ -438,6 +439,95 @@ export function ElectricianJobs() {
     return true;
   }
 
+  async function deleteTimeEntry(entry: TimeEntryRow) {
+    setDeletingId(`time-${entry.id}`);
+    setError(null);
+
+    const { error: deleteError } = await supabase
+      .from("time_entries")
+      .delete()
+      .eq("id", entry.id);
+
+    if (deleteError) {
+      setError(`Kunde inte radera tiden: ${deleteError.message}.`);
+      setDeletingId(null);
+      return;
+    }
+
+    await loadJobs();
+    setDeletingId(null);
+  }
+
+  async function deleteMaterialEntry(entry: MaterialEntryRow) {
+    setDeletingId(`material-${entry.id}`);
+    setError(null);
+
+    const { error: deleteError } = await supabase
+      .from("material_entries")
+      .delete()
+      .eq("id", entry.id);
+
+    if (deleteError) {
+      setError(`Kunde inte radera materialet: ${deleteError.message}.`);
+      setDeletingId(null);
+      return;
+    }
+
+    await loadJobs();
+    setDeletingId(null);
+  }
+
+  async function deleteWorkOrderNote(entry: WorkOrderNoteRow) {
+    setDeletingId(`note-${entry.id}`);
+    setError(null);
+
+    const { error: deleteError } = await supabase
+      .from("work_order_notes")
+      .delete()
+      .eq("id", entry.id);
+
+    if (deleteError) {
+      setError(`Kunde inte radera anteckningen: ${deleteError.message}.`);
+      setDeletingId(null);
+      return;
+    }
+
+    await loadJobs();
+    setDeletingId(null);
+  }
+
+  async function deleteWorkOrderPhoto(entry: WorkOrderPhotoRow) {
+    setDeletingId(`photo-${entry.id}`);
+    setError(null);
+
+    const { error: deletePhotoError } = await supabase
+      .from("work_order_photos")
+      .delete()
+      .eq("id", entry.id);
+
+    if (deletePhotoError) {
+      setError(`Kunde inte radera fotot: ${deletePhotoError.message}.`);
+      setDeletingId(null);
+      return;
+    }
+
+    const { error: removeError } = await supabase.storage
+      .from(photoBucket)
+      .remove([entry.storage_path]);
+
+    if (removeError) {
+      setError(
+        `Fotot togs bort från arbetsordern, men filen kunde inte tas bort från lagringen: ${removeError.message}.`,
+      );
+      await loadJobs();
+      setDeletingId(null);
+      return;
+    }
+
+    await loadJobs();
+    setDeletingId(null);
+  }
+
   function getCustomer(customerId: string) {
     return customers.find((customer) => customer.id === customerId);
   }
@@ -581,14 +671,26 @@ export function ElectricianJobs() {
                               key={entry.id}
                             >
                               <p className="text-slate-700">{entry.note}</p>
-                              <p className="mt-2 text-xs font-medium text-slate-500">
-                                {new Intl.DateTimeFormat("sv-SE", {
-                                  day: "numeric",
-                                  month: "short",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                }).format(new Date(entry.created_at))}
-                              </p>
+                              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-xs font-medium text-slate-500">
+                                  {new Intl.DateTimeFormat("sv-SE", {
+                                    day: "numeric",
+                                    month: "short",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  }).format(new Date(entry.created_at))}
+                                </p>
+                                <button
+                                  className="min-h-9 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                  disabled={deletingId === `note-${entry.id}`}
+                                  onClick={() => deleteWorkOrderNote(entry)}
+                                  type="button"
+                                >
+                                  {deletingId === `note-${entry.id}`
+                                    ? "Raderar"
+                                    : "Radera"}
+                                </button>
+                              </div>
                             </div>
                           ))
                         )}
@@ -648,6 +750,30 @@ export function ElectricianJobs() {
                       <div className="mt-3">
                         <WorkOrderPhotoGallery photos={jobPhotos} maxPhotos={4} />
                       </div>
+                      {jobPhotos.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          {jobPhotos.map((entry) => (
+                            <div
+                              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm"
+                              key={entry.id}
+                            >
+                              <span className="font-medium text-slate-700">
+                                {entry.caption || "Dokumentationsfoto"}
+                              </span>
+                              <button
+                                className="min-h-9 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                disabled={deletingId === `photo-${entry.id}`}
+                                onClick={() => deleteWorkOrderPhoto(entry)}
+                                type="button"
+                              >
+                                {deletingId === `photo-${entry.id}`
+                                  ? "Raderar"
+                                  : "Radera"}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </section>
 
                     <div>
@@ -768,14 +894,28 @@ export function ElectricianJobs() {
                                 className="rounded-lg border border-line bg-white px-3 py-2 text-sm"
                                 key={entry.id}
                               >
-                                <p className="font-semibold text-ink">
-                                  {Number(entry.hours).toLocaleString("sv-SE")} h
-                                </p>
-                                {entry.description ? (
-                                  <p className="mt-1 text-slate-600">
-                                    {entry.description}
-                                  </p>
-                                ) : null}
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div>
+                                    <p className="font-semibold text-ink">
+                                      {Number(entry.hours).toLocaleString("sv-SE")} h
+                                    </p>
+                                    {entry.description ? (
+                                      <p className="mt-1 text-slate-600">
+                                        {entry.description}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                  <button
+                                    className="min-h-9 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                    disabled={deletingId === `time-${entry.id}`}
+                                    onClick={() => deleteTimeEntry(entry)}
+                                    type="button"
+                                  >
+                                    {deletingId === `time-${entry.id}`
+                                      ? "Raderar"
+                                      : "Radera"}
+                                  </button>
+                                </div>
                               </div>
                             ))
                           )}
@@ -854,15 +994,31 @@ export function ElectricianJobs() {
                                 className="rounded-lg border border-line bg-white px-3 py-2 text-sm"
                                 key={entry.id}
                               >
-                                <p className="font-semibold text-ink">
-                                  {entry.name}
-                                </p>
-                                <p className="mt-1 text-slate-600">
-                                  {Number(entry.quantity).toLocaleString(
-                                    "sv-SE",
-                                  )}{" "}
-                                  {entry.unit}
-                                </p>
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div>
+                                    <p className="font-semibold text-ink">
+                                      {entry.name}
+                                    </p>
+                                    <p className="mt-1 text-slate-600">
+                                      {Number(entry.quantity).toLocaleString(
+                                        "sv-SE",
+                                      )}{" "}
+                                      {entry.unit}
+                                    </p>
+                                  </div>
+                                  <button
+                                    className="min-h-9 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                    disabled={
+                                      deletingId === `material-${entry.id}`
+                                    }
+                                    onClick={() => deleteMaterialEntry(entry)}
+                                    type="button"
+                                  >
+                                    {deletingId === `material-${entry.id}`
+                                      ? "Raderar"
+                                      : "Radera"}
+                                  </button>
+                                </div>
                               </div>
                             ))
                           )}

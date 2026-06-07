@@ -2,28 +2,30 @@
 
 Use this file when a task affects more than 3 files, changes database schema, changes auth/security, or introduces a new product module.
 
-## Active plan: Invoice review documentation
+## Active plan: Correct field reporting mistakes
 
 ## Goal
 
-Make invoice draft review show enough job documentation for admin/manager to catch missing reporting before marking an invoice basis ready.
+Let electricians correct mistakes in reported time, material, notes, and photos from the mobile field workflow.
 
 ## User story
 
-As an admin or manager, I want to see time, material, and photo documentation in the invoice draft flow, so that I can create invoice basis without opening several separate pages.
+As an electrician, I want to remove an incorrect report row directly from `Mina jobb`, so that admin does not invoice wrong time, material, notes, or photos.
 
 ## Scope
 
 Included:
-- Photo documentation in the invoice draft flow
-- Per-work-order warnings for missing time, material, and photos
-- Summary counts for ready drafts and missing reporting
-- Existing private photo gallery reused through signed URLs
+- Delete reported time entries
+- Delete reported material entries
+- Delete work order notes
+- Delete work order photo metadata and storage object
+- Clear loading states and Supabase error messages
 
 Excluded:
 - New schema changes
-- Real invoice sending
-- Fortnox/Visma export
+- Editing existing rows inline
+- Undo/restore after delete
+- Admin correction screens
 
 ## Files likely affected
 
@@ -34,26 +36,26 @@ Excluded:
 ## Data model changes
 
 - No schema changes.
-- Uses existing `work_order_photos`, `time_entries`, `material_entries`, and `invoice_drafts`.
+- Uses existing RLS delete policies for reporting tables and storage objects.
 
 ## UI changes
 
-- Add invoice review summary cards.
-- Show warning badges on invoice draft cards.
-- Show photo gallery inside the invoice draft review card.
+- Add small delete buttons next to reported rows in `Mina jobb`.
+- Keep delete controls visible but secondary to reporting actions.
+- Show per-row deleting state.
 
 ## Security/RLS considerations
 
-- Reads are still enforced by existing Supabase RLS.
-- Photo previews still use signed URLs from the private storage bucket.
-- No new policies are required.
+- Deletes are enforced by existing RLS.
+- Electricians can only delete reporting connected to assigned work orders.
+- Photo deletion removes database metadata and then attempts storage cleanup.
 
 ## Implementation steps
 
-1. Load work order photos in the invoice draft flow.
-2. Add review summary counts.
-3. Add missing-data warning badges per work order.
-4. Render photo documentation in each invoice draft card.
+1. Add delete handlers for time, material, notes, and photos.
+2. Add row-level delete buttons in the field workflow.
+3. Clean up storage objects for deleted photos.
+4. Keep UI states clear on mobile.
 5. Validate lint, typecheck, build, and browser smoke.
 
 ## Validation
@@ -64,14 +66,14 @@ Commands to run:
 - npm run build
 
 Manual checks:
-- Confirm invoice draft page renders logged-out and logged-in states.
-- Confirm warnings show when time, material, or photos are missing.
-- Confirm photo gallery can render without public bucket access.
+- Confirm delete buttons render in reported rows.
+- Confirm loading state prevents repeat taps.
+- Confirm RLS errors surface clearly if deletion is denied.
 
 ## Risks
 
-- HEIC previews may still depend on browser support; the signed open link remains available.
-- Invoice review now loads photos in addition to reporting rows, so large future datasets may need pagination.
+- Deletes are currently immediate; a future confirmation or undo may be useful once real users test the flow.
+- If storage deletion fails after metadata deletion, the UI reports it but the orphaned storage object may remain.
 
 ## Plan template
 
