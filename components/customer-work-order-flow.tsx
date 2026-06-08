@@ -351,11 +351,10 @@ export function CustomerWorkOrderFlow() {
           className="rounded-lg border border-line bg-white p-5"
           onSubmit={async (event) => {
             event.preventDefault();
-            const wasCreated = await createRequest(
-              new FormData(event.currentTarget),
-            );
+            const form = event.currentTarget;
+            const wasCreated = await createRequest(new FormData(form));
             if (wasCreated) {
-              event.currentTarget.reset();
+              form.reset();
             }
           }}
         >

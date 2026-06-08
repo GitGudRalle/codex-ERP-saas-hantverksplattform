@@ -633,12 +633,13 @@ export function ElectricianJobs() {
                         className="mt-3 grid gap-2"
                         onSubmit={async (event) => {
                           event.preventDefault();
+                          const form = event.currentTarget;
                           const wasSaved = await addWorkOrderNote(
                             job,
-                            new FormData(event.currentTarget),
+                            new FormData(form),
                           );
                           if (wasSaved) {
-                            event.currentTarget.reset();
+                            form.reset();
                           }
                         }}
                       >
@@ -710,12 +711,13 @@ export function ElectricianJobs() {
                         className="mt-3 grid gap-2"
                         onSubmit={async (event) => {
                           event.preventDefault();
+                          const form = event.currentTarget;
                           const wasSaved = await addWorkOrderPhoto(
                             job,
-                            new FormData(event.currentTarget),
+                            new FormData(form),
                           );
                           if (wasSaved) {
-                            event.currentTarget.reset();
+                            form.reset();
                           }
                         }}
                       >
@@ -845,12 +847,13 @@ export function ElectricianJobs() {
                           className="mt-3 grid gap-2"
                           onSubmit={async (event) => {
                             event.preventDefault();
+                            const form = event.currentTarget;
                             const wasSaved = await addTimeEntry(
                               job,
-                              new FormData(event.currentTarget),
+                              new FormData(form),
                             );
                             if (wasSaved) {
-                              event.currentTarget.reset();
+                              form.reset();
                             }
                           }}
                         >
@@ -935,12 +938,13 @@ export function ElectricianJobs() {
                           className="mt-3 grid gap-2"
                           onSubmit={async (event) => {
                             event.preventDefault();
+                            const form = event.currentTarget;
                             const wasSaved = await addMaterialEntry(
                               job,
-                              new FormData(event.currentTarget),
+                              new FormData(form),
                             );
                             if (wasSaved) {
-                              event.currentTarget.reset();
+                              form.reset();
                             }
                           }}
                         >
