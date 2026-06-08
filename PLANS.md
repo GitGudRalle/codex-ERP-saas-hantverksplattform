@@ -21,12 +21,12 @@ Included:
 
 Excluded:
 - New schema changes
-- Server-side image processing
 - Native mobile capture features
 
 ## Files likely affected
 
 - `components/electrician-jobs.tsx`
+- `app/api/photos/convert-heic/route.ts`
 - `components/work-order-photo-gallery.tsx`
 - `package.json`
 - `package-lock.json`
@@ -46,12 +46,12 @@ Excluded:
 ## Security/RLS considerations
 
 - Existing Supabase Storage bucket and RLS policies remain unchanged.
-- Conversion happens locally in the browser before upload.
+- HEIC conversion happens in a size-limited same-origin API route before upload.
 - Stored objects remain company/work-order scoped.
 
 ## Implementation steps
 
-1. Add browser-side HEIC/HEIF conversion helper.
+1. Add size-limited HEIC/HEIF conversion API route.
 2. Upload converted JPEG files with correct content type and filename.
 3. Add gallery fallback for unsupported previews.
 4. Validate lint, typecheck, build, and browser smoke.
@@ -70,7 +70,7 @@ Manual checks:
 
 ## Risks
 
-- HEIC conversion runs on the device and may take a few seconds for large photos.
+- HEIC conversion can take a few seconds for large photos.
 
 ## Plan template
 

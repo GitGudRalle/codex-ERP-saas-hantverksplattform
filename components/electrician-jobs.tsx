@@ -131,13 +131,23 @@ async function preparePhotoForUpload(file: File) {
     };
   }
 
-  const { default: heic2any } = await import("heic2any");
-  const converted = await heic2any({
-    blob: file,
-    quality: 0.86,
-    toType: "image/jpeg",
+  const formData = new FormData();
+  formData.append("photo", file);
+
+  const response = await fetch("/api/photos/convert-heic", {
+    body: formData,
+    method: "POST",
   });
-  const blob = Array.isArray(converted) ? converted[0] : converted;
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+
+    throw new Error(payload?.error ?? "Kunde inte konvertera HEIC-fotot.");
+  }
+
+  const blob = await response.blob();
   const baseName = file.name.replace(/\.[^.]+$/, "") || "foto";
   const convertedFile = new File([blob], `${baseName}.jpg`, {
     lastModified: file.lastModified,
@@ -443,9 +453,13 @@ export function ElectricianJobs() {
 
     try {
       uploadPhoto = await preparePhotoForUpload(file);
-    } catch {
+    } catch (conversionError) {
+      const message =
+        conversionError instanceof Error
+          ? conversionError.message
+          : "Kunde inte konvertera HEIC-fotot.";
       setError(
-        "Kunde inte konvertera HEIC-fotot. Prova att välja fotot igen eller exportera det som JPG.",
+        `${message} Prova att välja fotot igen eller exportera det som JPG.`,
       );
       setSavingPhotoId(null);
       return false;
