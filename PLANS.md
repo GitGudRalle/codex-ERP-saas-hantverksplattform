@@ -2,60 +2,59 @@
 
 Use this file when a task affects more than 3 files, changes database schema, changes auth/security, or introduces a new product module.
 
-## Active plan: Mark invoice basis invoiced
+## Active plan: HEIC photo preview reliability
 
 ## Goal
 
-Let admin and manager close the MVP flow by marking a reviewed invoice basis as invoiced.
+Make iPhone/Android photo uploads preview reliably in the browser.
 
 ## User story
 
-As an admin or manager, I want to mark a work order as invoiced after saving an invoice basis, so that it leaves the ready-for-invoice queue.
+As an electrician, I want uploaded photos to be visible in the work order, so that documentation can be reviewed before invoicing.
 
 ## Scope
 
 Included:
-- Mark invoice draft as exported
-- Mark work order as invoiced
-- Keep real invoice sending outside the MVP
-- Require an existing invoice draft before closing the work order
+- Convert HEIC/HEIF uploads to browser-friendly JPEG before saving.
+- Keep JPG, PNG, and WebP upload behavior unchanged.
+- Show a clear fallback for existing files the browser cannot preview.
 
 Excluded:
 - New schema changes
-- Sending a real invoice
-- Fortnox/Visma export
-- Accounting integration
+- Server-side image processing
+- Native mobile capture features
 
 ## Files likely affected
 
-- `components/**`
-- `README.md`
+- `components/electrician-jobs.tsx`
+- `components/work-order-photo-gallery.tsx`
+- `package.json`
+- `package-lock.json`
+- `.gitignore`
 - `PLANS.md`
 
 ## Data model changes
 
 - No schema changes.
-- Uses existing `invoice_drafts.status` and `work_orders.status`.
+- Future HEIC/HEIF uploads are stored as JPEG objects in the existing private bucket.
 
 ## UI changes
 
-- Add "Markera fakturerad" action to invoice draft cards.
-- Disable the action until an invoice draft exists.
-- Remove invoiced work orders from the ready-for-invoice queue after reload.
+- Existing HEIC files no longer show as a blank preview area.
+- Users get a Swedish explanation and an open/download action when a preview is unavailable.
 
 ## Security/RLS considerations
 
-- Updates are enforced by existing RLS.
-- Admin/manager can update invoice drafts and work orders inside their company.
-- Electricians cannot access invoice draft flow.
+- Existing Supabase Storage bucket and RLS policies remain unchanged.
+- Conversion happens locally in the browser before upload.
+- Stored objects remain company/work-order scoped.
 
 ## Implementation steps
 
-1. Add invoicing state and handler.
-2. Update invoice draft to exported.
-3. Update work order to invoiced.
-4. Add action button and feedback.
-5. Validate lint, typecheck, build, and browser smoke.
+1. Add browser-side HEIC/HEIF conversion helper.
+2. Upload converted JPEG files with correct content type and filename.
+3. Add gallery fallback for unsupported previews.
+4. Validate lint, typecheck, build, and browser smoke.
 
 ## Validation
 
@@ -65,13 +64,13 @@ Commands to run:
 - npm run build
 
 Manual checks:
-- Confirm button is disabled until a draft exists.
-- Confirm invoiced work order leaves the ready queue.
-- Confirm RLS errors surface clearly if update is denied.
+- Upload HEIC from the electrician view.
+- Confirm the saved image renders as a preview.
+- Confirm existing unsupported HEIC files show fallback text instead of a blank box.
 
 ## Risks
 
-- This does not send a real invoice; it only records MVP workflow state.
+- HEIC conversion runs on the device and may take a few seconds for large photos.
 
 ## Plan template
 

@@ -18,6 +18,9 @@ export function WorkOrderPhotoGallery({
   maxPhotos,
 }: WorkOrderPhotoGalleryProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const [failedPreviews, setFailedPreviews] = useState<Record<string, boolean>>(
+    {},
+  );
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
 
   const visiblePhotos = useMemo(
@@ -71,22 +74,43 @@ export function WorkOrderPhotoGallery({
     <div className="grid gap-3 sm:grid-cols-2">
       {visiblePhotos.map((photo) => {
         const signedUrl = signedUrls[photo.storage_path];
+        const extension = photo.storage_path.split(".").pop()?.toLowerCase();
+        const cannotPreview =
+          failedPreviews[photo.storage_path] ||
+          extension === "heic" ||
+          extension === "heif";
 
         return (
           <article
             className="overflow-hidden rounded-lg border border-line bg-white"
             key={photo.id}
           >
-            {signedUrl ? (
+            {signedUrl && !cannotPreview ? (
               <a href={signedUrl} rel="noreferrer" target="_blank">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   alt={photo.caption ?? "Dokumentationsfoto"}
                   className="aspect-[4/3] w-full bg-field object-cover"
                   loading="lazy"
+                  onError={() =>
+                    setFailedPreviews((current) => ({
+                      ...current,
+                      [photo.storage_path]: true,
+                    }))
+                  }
                   src={signedUrl}
                 />
               </a>
+            ) : signedUrl ? (
+              <div className="flex aspect-[4/3] flex-col items-center justify-center gap-3 bg-field px-4 text-center">
+                <p className="text-sm font-semibold text-ink">
+                  FÃ¶rhandsvisning saknas
+                </p>
+                <p className="text-sm text-slate-600">
+                  Fotot Ã¤r uppladdat, men den hÃ¤r filtypen kan inte visas i
+                  webblÃ¤saren.
+                </p>
+              </div>
             ) : (
               <div className="flex aspect-[4/3] items-center justify-center bg-field px-3 text-center text-sm text-slate-600">
                 Hämtar foto...

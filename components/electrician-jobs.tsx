@@ -82,7 +82,10 @@ function getPhotoMimeType(file: File) {
 function getPhotoExtension(file: File) {
   const extension = file.name.split(".").pop()?.toLowerCase();
 
-  if (extension && ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(extension)) {
+  if (
+    extension &&
+    ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(extension)
+  ) {
     return extension === "jpeg" ? "jpg" : extension;
   }
 
@@ -105,6 +108,47 @@ function getPhotoExtension(file: File) {
   }
 
   return "jpg";
+}
+
+function isHeicPhoto(file: File) {
+  const mimeType = getPhotoMimeType(file);
+  const extension = file.name.split(".").pop()?.toLowerCase();
+
+  return (
+    mimeType === "image/heic" ||
+    mimeType === "image/heif" ||
+    extension === "heic" ||
+    extension === "heif"
+  );
+}
+
+async function preparePhotoForUpload(file: File) {
+  if (!isHeicPhoto(file)) {
+    return {
+      extension: getPhotoExtension(file),
+      file,
+      mimeType: getPhotoMimeType(file),
+    };
+  }
+
+  const { default: heic2any } = await import("heic2any");
+  const converted = await heic2any({
+    blob: file,
+    quality: 0.86,
+    toType: "image/jpeg",
+  });
+  const blob = Array.isArray(converted) ? converted[0] : converted;
+  const baseName = file.name.replace(/\.[^.]+$/, "") || "foto";
+  const convertedFile = new File([blob], `${baseName}.jpg`, {
+    lastModified: file.lastModified,
+    type: "image/jpeg",
+  });
+
+  return {
+    extension: "jpg",
+    file: convertedFile,
+    mimeType: "image/jpeg",
+  };
 }
 
 export function ElectricianJobs() {
@@ -382,8 +426,6 @@ export function ElectricianJobs() {
     }
 
     const mimeType = getPhotoMimeType(file);
-    const extension = getPhotoExtension(file);
-
     if (!allowedPhotoMimeTypes.has(mimeType)) {
       setError("Fotot behöver vara JPG, PNG, WebP, HEIC eller HEIF.");
       return false;
@@ -397,13 +439,25 @@ export function ElectricianJobs() {
     setSavingPhotoId(workOrder.id);
     setError(null);
 
-    const storagePath = `${workOrder.company_id}/${workOrder.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+    let uploadPhoto: Awaited<ReturnType<typeof preparePhotoForUpload>>;
+
+    try {
+      uploadPhoto = await preparePhotoForUpload(file);
+    } catch {
+      setError(
+        "Kunde inte konvertera HEIC-fotot. Prova att vÃ¤lja fotot igen eller exportera det som JPG.",
+      );
+      setSavingPhotoId(null);
+      return false;
+    }
+
+    const storagePath = `${workOrder.company_id}/${workOrder.id}/${Date.now()}-${crypto.randomUUID()}.${uploadPhoto.extension}`;
 
     const { error: uploadError } = await supabase.storage
       .from(photoBucket)
-      .upload(storagePath, file, {
+      .upload(storagePath, uploadPhoto.file, {
         cacheControl: "3600",
-        contentType: mimeType,
+        contentType: uploadPhoto.mimeType,
         upsert: false,
       });
 
