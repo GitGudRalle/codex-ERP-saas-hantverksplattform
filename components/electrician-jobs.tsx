@@ -445,7 +445,7 @@ export function ElectricianJobs() {
       uploadPhoto = await preparePhotoForUpload(file);
     } catch {
       setError(
-        "Kunde inte konvertera HEIC-fotot. Prova att vÃ¤lja fotot igen eller exportera det som JPG.",
+        "Kunde inte konvertera HEIC-fotot. Prova att välja fotot igen eller exportera det som JPG.",
       );
       setSavingPhotoId(null);
       return false;

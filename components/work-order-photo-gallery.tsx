@@ -104,11 +104,11 @@ export function WorkOrderPhotoGallery({
             ) : signedUrl ? (
               <div className="flex aspect-[4/3] flex-col items-center justify-center gap-3 bg-field px-4 text-center">
                 <p className="text-sm font-semibold text-ink">
-                  FÃ¶rhandsvisning saknas
+                  Förhandsvisning saknas
                 </p>
                 <p className="text-sm text-slate-600">
-                  Fotot Ã¤r uppladdat, men den hÃ¤r filtypen kan inte visas i
-                  webblÃ¤saren.
+                  Fotot är uppladdat, men den här filtypen kan inte visas i
+                  webbläsaren.
                 </p>
               </div>
             ) : (
