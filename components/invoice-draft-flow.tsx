@@ -11,6 +11,7 @@ import type {
   ProfileRow,
   SiteRow,
   TimeEntryRow,
+  WorkOrderNoteRow,
   WorkOrderPhotoRow,
   WorkOrderRow,
 } from "@/lib/supabase/types";
@@ -41,6 +42,8 @@ function buildInvoiceText(
   site: SiteRow | undefined,
   timeEntries: TimeEntryRow[],
   materialEntries: MaterialEntryRow[],
+  notes: WorkOrderNoteRow[],
+  photos: WorkOrderPhotoRow[],
 ) {
   const totalHours = timeEntries.reduce(
     (sum, entry) => sum + Number(entry.hours),
@@ -73,6 +76,11 @@ function buildInvoiceText(
           entry.unit
         }`,
     ),
+    "",
+    notes.length > 0 ? "Anteckningar:" : null,
+    ...notes.map((note) => `- ${note.note}`),
+    "",
+    `Fotodokumentation: ${photos.length} foton`,
   ].filter((line) => line !== null);
 
   return lines.join("\n");
@@ -86,6 +94,7 @@ export function InvoiceDraftFlow() {
   const [workOrders, setWorkOrders] = useState<WorkOrderRow[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntryRow[]>([]);
   const [materialEntries, setMaterialEntries] = useState<MaterialEntryRow[]>([]);
+  const [notes, setNotes] = useState<WorkOrderNoteRow[]>([]);
   const [photos, setPhotos] = useState<WorkOrderPhotoRow[]>([]);
   const [invoiceDrafts, setInvoiceDrafts] = useState<InvoiceDraftRow[]>([]);
   const [draftTexts, setDraftTexts] = useState<Record<string, string>>({});
@@ -113,6 +122,9 @@ export function InvoiceDraftFlow() {
         const hasMaterial = materialEntries.some(
           (entry) => entry.work_order_id === workOrder.id,
         );
+        const hasNotes = notes.some(
+          (note) => note.work_order_id === workOrder.id,
+        );
         const hasPhotos = photos.some(
           (photo) => photo.work_order_id === workOrder.id,
         );
@@ -123,7 +135,7 @@ export function InvoiceDraftFlow() {
 
         return {
           missingDocumentation:
-            summary.missingDocumentation + (hasPhotos ? 0 : 1),
+            summary.missingDocumentation + (hasNotes || hasPhotos ? 0 : 1),
           missingMaterial: summary.missingMaterial + (hasMaterial ? 0 : 1),
           missingTime: summary.missingTime + (hasTime ? 0 : 1),
           readyDrafts: summary.readyDrafts + (hasReadyDraft ? 1 : 0),
@@ -136,7 +148,14 @@ export function InvoiceDraftFlow() {
         readyDrafts: 0,
       },
     );
-  }, [invoiceDrafts, materialEntries, photos, readyWorkOrders, timeEntries]);
+  }, [
+    invoiceDrafts,
+    materialEntries,
+    notes,
+    photos,
+    readyWorkOrders,
+    timeEntries,
+  ]);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -151,6 +170,7 @@ export function InvoiceDraftFlow() {
       setWorkOrders([]);
       setTimeEntries([]);
       setMaterialEntries([]);
+      setNotes([]);
       setPhotos([]);
       setInvoiceDrafts([]);
       setIsLoading(false);
@@ -175,6 +195,7 @@ export function InvoiceDraftFlow() {
       workOrdersResult,
       timeEntriesResult,
       materialEntriesResult,
+      notesResult,
       photosResult,
       invoiceDraftsResult,
     ] = await Promise.all([
@@ -195,6 +216,9 @@ export function InvoiceDraftFlow() {
       supabase.from("material_entries").select("*").order("created_at", {
         ascending: false,
       }),
+      supabase.from("work_order_notes").select("*").order("created_at", {
+        ascending: false,
+      }),
       supabase.from("work_order_photos").select("*").order("created_at", {
         ascending: false,
       }),
@@ -209,6 +233,7 @@ export function InvoiceDraftFlow() {
       workOrdersResult.error ||
       timeEntriesResult.error ||
       materialEntriesResult.error ||
+      notesResult.error ||
       photosResult.error ||
       invoiceDraftsResult.error
     ) {
@@ -223,6 +248,7 @@ export function InvoiceDraftFlow() {
     const nextTimeEntries = (timeEntriesResult.data ?? []) as TimeEntryRow[];
     const nextMaterialEntries = (materialEntriesResult.data ??
       []) as MaterialEntryRow[];
+    const nextNotes = (notesResult.data ?? []) as WorkOrderNoteRow[];
     const nextPhotos = (photosResult.data ?? []) as WorkOrderPhotoRow[];
     const nextInvoiceDrafts = (invoiceDraftsResult.data ??
       []) as InvoiceDraftRow[];
@@ -233,6 +259,7 @@ export function InvoiceDraftFlow() {
     setWorkOrders(nextWorkOrders);
     setTimeEntries(nextTimeEntries);
     setMaterialEntries(nextMaterialEntries);
+    setNotes(nextNotes);
     setPhotos(nextPhotos);
     setInvoiceDrafts(nextInvoiceDrafts);
     setDraftTexts((current) => {
@@ -256,6 +283,8 @@ export function InvoiceDraftFlow() {
               nextMaterialEntries.filter(
                 (entry) => entry.work_order_id === workOrder.id,
               ),
+              nextNotes.filter((note) => note.work_order_id === workOrder.id),
+              nextPhotos.filter((photo) => photo.work_order_id === workOrder.id),
             );
         }
       });
@@ -330,7 +359,7 @@ export function InvoiceDraftFlow() {
 
   async function markWorkOrderInvoiced(workOrder: WorkOrderRow) {
     if (!profile || !canManage) {
-      setError("Du behÃ¶ver vara admin eller manager fÃ¶r att markera fakturerad.");
+      setError("Du behöver vara admin eller manager för att markera fakturerad.");
       return;
     }
 
@@ -390,6 +419,10 @@ export function InvoiceDraftFlow() {
 
   function getMaterialEntries(workOrderId: string) {
     return materialEntries.filter((entry) => entry.work_order_id === workOrderId);
+  }
+
+  function getNotes(workOrderId: string) {
+    return notes.filter((note) => note.work_order_id === workOrderId);
   }
 
   function getPhotos(workOrderId: string) {
@@ -472,7 +505,7 @@ export function InvoiceDraftFlow() {
             </p>
           </div>
           <div className="rounded-lg border border-line bg-field p-3">
-            <p className="text-sm text-slate-600">Saknar foto</p>
+            <p className="text-sm text-slate-600">Saknar dokumentation</p>
             <p className="mt-1 text-2xl font-semibold text-ink">
               {reviewSummary.missingDocumentation}
             </p>
@@ -499,6 +532,7 @@ export function InvoiceDraftFlow() {
                 const site = getSite(workOrder.site_id);
                 const jobTimeEntries = getTimeEntries(workOrder.id);
                 const jobMaterialEntries = getMaterialEntries(workOrder.id);
+                const jobNotes = getNotes(workOrder.id);
                 const jobPhotos = getPhotos(workOrder.id);
                 const existingDraft = getInvoiceDraft(workOrder.id);
                 const totalHours = jobTimeEntries.reduce(
@@ -507,7 +541,8 @@ export function InvoiceDraftFlow() {
                 );
                 const missingTime = totalHours <= 0;
                 const missingMaterial = jobMaterialEntries.length === 0;
-                const missingPhotos = jobPhotos.length === 0;
+                const missingDocumentation =
+                  jobNotes.length === 0 && jobPhotos.length === 0;
 
                 return (
                   <article
@@ -560,7 +595,7 @@ export function InvoiceDraftFlow() {
                       </div>
                     </div>
 
-                    {missingTime || missingMaterial || missingPhotos ? (
+                    {missingTime || missingMaterial || missingDocumentation ? (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {missingTime ? (
                           <span className="inline-flex min-h-8 items-center rounded-full border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-900">
@@ -572,15 +607,15 @@ export function InvoiceDraftFlow() {
                             Inget material rapporterat
                           </span>
                         ) : null}
-                        {missingPhotos ? (
+                        {missingDocumentation ? (
                           <span className="inline-flex min-h-8 items-center rounded-full border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-900">
-                            Saknar fotodokumentation
+                            Saknar dokumentation
                           </span>
                         ) : null}
                       </div>
                     ) : (
                       <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">
-                        Tid, material och fotodokumentation finns.
+                        Tid, material och dokumentation finns.
                       </p>
                     )}
 
@@ -636,6 +671,33 @@ export function InvoiceDraftFlow() {
                         </div>
                       </section>
                     </div>
+
+                    <section className="mt-4 rounded-lg border border-line bg-white p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <h4 className="text-sm font-semibold text-ink">
+                          Anteckningar
+                        </h4>
+                        <span className="text-sm font-medium text-slate-600">
+                          {jobNotes.length} st
+                        </span>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {jobNotes.length === 0 ? (
+                          <p className="text-sm text-slate-600">
+                            Inga anteckningar finns på arbetsordern.
+                          </p>
+                        ) : (
+                          jobNotes.map((note) => (
+                            <p
+                              className="rounded-lg border border-line bg-field px-3 py-2 text-sm leading-6 text-slate-700"
+                              key={note.id}
+                            >
+                              {note.note}
+                            </p>
+                          ))
+                        )}
+                      </div>
+                    </section>
 
                     <section className="mt-4 rounded-lg border border-line bg-white p-3">
                       <div className="flex items-center justify-between gap-3">

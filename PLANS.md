@@ -2,44 +2,44 @@
 
 Use this file when a task affects more than 3 files, changes database schema, changes auth/security, or introduces a new product module.
 
-## Active plan: Admin work order pipeline
+## Active plan: Invoice draft documentation review
 
 ## Goal
 
-Give admin and manager a quick operational overview of work orders by status.
+Make invoice draft review include field notes and clearer documentation completeness.
 
 ## User story
 
-As an owner or admin, I want to filter work orders by lifecycle status, so that I can see what needs action without scanning every job.
+As an admin or manager, I want notes and photo counts included when reviewing invoice basis, so that important field documentation is not missed.
 
 ## Scope
 
 Included:
-- Add status filter chips to the work order list.
-- Show counts for the most important operational statuses.
-- Keep the existing assignment actions in the list.
+- Fetch work order notes in invoice draft flow.
+- Include notes and photo count in generated invoice text.
+- Treat documentation as notes or photos, not photos only.
+- Show notes beside time/material/photos during review.
 
 Excluded:
 - New schema changes
-- Drag-and-drop boards
-- Advanced reporting
-- Route planning
+- Real invoice sending
+- AI-generated invoice text
+- Accounting integrations
 
 ## Files likely affected
 
 - `PLANS.md`
-- `components/customer-work-order-flow.tsx`
-- `lib/domain.ts`
+- `components/invoice-draft-flow.tsx`
 
 ## Data model changes
 
 - No schema changes.
-- Uses existing `work_orders.status`.
+- Uses existing `work_order_notes` and `work_order_photos`.
 
 ## UI changes
 
-- Add mobile-friendly filter buttons above the work order list.
-- Show filtered empty state when no jobs match the selected status.
+- Add notes to the invoice review card.
+- Improve generated text with field notes and documentation count.
 
 ## Security/RLS considerations
 
@@ -48,9 +48,9 @@ Excluded:
 
 ## Implementation steps
 
-1. Add filter state and status counts.
-2. Add status chips above the work order list.
-3. Render filtered work orders and empty state.
+1. Fetch notes in invoice draft flow.
+2. Include notes/photos in review summary and generated text.
+3. Render notes in invoice review cards.
 4. Validate lint, typecheck, build, and browser smoke.
 
 ## Validation
@@ -61,12 +61,12 @@ Commands to run:
 - npm run build
 
 Manual checks:
-- Confirm status chips update the visible list.
-- Confirm unassigned jobs still show assignment buttons.
+- Confirm completed documentation is recognized when notes or photos exist.
+- Confirm generated invoice text includes notes where present.
 
 ## Risks
 
-- This remains a list, not a full kanban board, to avoid overbuilding.
+- Notes may contain internal wording; admin can edit invoice text before saving.
 
 ## Plan template
 
