@@ -2,58 +2,54 @@
 
 Use this file when a task affects more than 3 files, changes database schema, changes auth/security, or introduces a new product module.
 
-## Active plan: HEIC photo preview reliability
+## Active plan: Existing customer work order creation
 
 ## Goal
 
-Make iPhone/Android photo uploads preview reliably in the browser.
+Reduce duplicate customers by letting admin and manager create work orders for existing customers and sites.
 
 ## User story
 
-As an electrician, I want uploaded photos to be visible in the work order, so that documentation can be reviewed before invoicing.
+As an admin or manager, I want to register a new job on an existing customer and site, so that incoming calls become work orders without duplicate customer records.
 
 ## Scope
 
 Included:
-- Convert HEIC/HEIF uploads to browser-friendly JPEG before saving.
-- Keep JPG, PNG, and WebP upload behavior unchanged.
-- Show a clear fallback for existing files the browser cannot preview.
+- Choose new or existing customer in the quick work order form.
+- Choose existing site or create a new site for an existing customer.
+- Keep the existing new-customer flow available.
 
 Excluded:
 - New schema changes
-- Native mobile capture features
+- Customer merge tools
+- Advanced search/filtering
 
 ## Files likely affected
 
-- `components/electrician-jobs.tsx`
-- `app/api/photos/convert-heic/route.ts`
-- `components/work-order-photo-gallery.tsx`
-- `package.json`
-- `package-lock.json`
-- `.gitignore`
 - `PLANS.md`
+- `components/customer-work-order-flow.tsx`
 
 ## Data model changes
 
 - No schema changes.
-- Future HEIC/HEIF uploads are stored as JPEG objects in the existing private bucket.
+- Uses existing `customers`, `sites`, and `work_orders`.
 
 ## UI changes
 
-- Existing HEIC files no longer show as a blank preview area.
-- Users get a Swedish explanation and an open/download action when a preview is unavailable.
+- Add a simple customer mode selector to the quick form.
+- Show customer/site dropdowns when existing records are used.
+- Keep large mobile-friendly inputs.
 
 ## Security/RLS considerations
 
-- Existing Supabase Storage bucket and RLS policies remain unchanged.
-- HEIC conversion happens in a size-limited same-origin API route before upload.
-- Stored objects remain company/work-order scoped.
+- Existing RLS continues to enforce company scoping.
+- Client selections are validated against loaded company-scoped rows before insert.
 
 ## Implementation steps
 
-1. Add size-limited HEIC/HEIF conversion API route.
-2. Upload converted JPEG files with correct content type and filename.
-3. Add gallery fallback for unsupported previews.
+1. Add customer/site mode state to the quick form.
+2. Update create handler to reuse selected customer/site where appropriate.
+3. Add Swedish UI controls and validation messages.
 4. Validate lint, typecheck, build, and browser smoke.
 
 ## Validation
@@ -64,13 +60,13 @@ Commands to run:
 - npm run build
 
 Manual checks:
-- Upload HEIC from the electrician view.
-- Confirm the saved image renders as a preview.
-- Confirm existing unsupported HEIC files show fallback text instead of a blank box.
+- Create a work order for a new customer.
+- Create a work order for an existing customer and existing site.
+- Create a work order for an existing customer and new site.
 
 ## Risks
 
-- HEIC conversion can take a few seconds for large photos.
+- Dropdowns are enough for MVP data volume, but later we may need searchable comboboxes.
 
 ## Plan template
 

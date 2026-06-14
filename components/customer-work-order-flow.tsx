@@ -52,6 +52,10 @@ export function CustomerWorkOrderFlow() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [customerMode, setCustomerMode] = useState<"new" | "existing">("new");
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [siteMode, setSiteMode] = useState<"new" | "existing">("new");
+  const [selectedSiteId, setSelectedSiteId] = useState("");
 
   const canManage =
     profile?.role === "admin" || profile?.role === "manager";
@@ -64,6 +68,11 @@ export function CustomerWorkOrderFlow() {
   const completedWorkOrders = useMemo(
     () => workOrders.filter((workOrder) => workOrder.status === "completed"),
     [workOrders],
+  );
+
+  const selectedCustomerSites = useMemo(
+    () => sites.filter((site) => site.customer_id === selectedCustomerId),
+    [selectedCustomerId, sites],
   );
 
   const loadData = useCallback(async () => {
@@ -173,68 +182,147 @@ export function CustomerWorkOrderFlow() {
       return false;
     }
 
-    const result = customerRequestSchema.safeParse({
-      customerName: getFormValue(formData, "customerName"),
-      phone: getFormValue(formData, "phone"),
-      address: getFormValue(formData, "address"),
-      city: getFormValue(formData, "city"),
-      title: getFormValue(formData, "title"),
-      description: getFormValue(formData, "description"),
-      priority: getFormValue(formData, "priority"),
-    });
+    const customerModeValue =
+      getFormValue(formData, "customerMode") === "existing"
+        ? "existing"
+        : "new";
+    const siteModeValue =
+      customerModeValue === "existing" &&
+      getFormValue(formData, "siteMode") === "existing"
+        ? "existing"
+        : "new";
+    const priorityValue = getFormValue(formData, "priority");
+    const title = getFormValue(formData, "title");
+    const description = getFormValue(formData, "description");
+    const customerName = getFormValue(formData, "customerName");
+    const phone = getFormValue(formData, "phone");
+    const address = getFormValue(formData, "address");
+    const city = getFormValue(formData, "city");
 
-    if (!result.success) {
-      setError(result.error.issues[0]?.message ?? "Kontrollera formuläret.");
+    if (title.length < 3) {
+      setError("Ange rubrik");
+      return false;
+    }
+
+    if (description.length < 8) {
+      setError("Beskriv jobbet kort");
+      return false;
+    }
+
+    if (!Object.keys(priorityLabels).includes(priorityValue)) {
+      setError("Välj prioritet.");
       return false;
     }
 
     setIsSaving(true);
     setError(null);
 
-    const customerResult = await supabase
-      .from("customers")
-      .insert({
-        company_id: profile.company_id,
-        name: result.data.customerName,
-        phone: result.data.phone,
-        customer_type: "private",
-      })
-      .select("*")
-      .single();
+    let customerId = "";
 
-    if (customerResult.error) {
-      setError("Kunde inte skapa kund.");
-      setIsSaving(false);
-      return false;
+    if (customerModeValue === "existing") {
+      const existingCustomerId = getFormValue(formData, "existingCustomerId");
+      const existingCustomer = customers.find(
+        (customer) => customer.id === existingCustomerId,
+      );
+
+      if (!existingCustomer) {
+        setError("Välj befintlig kund.");
+        setIsSaving(false);
+        return false;
+      }
+
+      customerId = existingCustomer.id;
+    } else {
+      const customerResult = customerRequestSchema
+        .pick({ customerName: true, phone: true })
+        .safeParse({ customerName, phone });
+
+      if (!customerResult.success) {
+        setError(
+          customerResult.error.issues[0]?.message ?? "Kontrollera kunden.",
+        );
+        setIsSaving(false);
+        return false;
+      }
+
+      const insertCustomerResult = await supabase
+        .from("customers")
+        .insert({
+          company_id: profile.company_id,
+          name: customerResult.data.customerName,
+          phone: customerResult.data.phone,
+          customer_type: "private",
+        })
+        .select("*")
+        .single();
+
+      if (insertCustomerResult.error) {
+        setError("Kunde inte skapa kund.");
+        setIsSaving(false);
+        return false;
+      }
+
+      customerId = insertCustomerResult.data.id;
     }
 
-    const siteResult = await supabase
-      .from("sites")
-      .insert({
-        company_id: profile.company_id,
-        customer_id: customerResult.data.id,
-        address: result.data.address,
-        city: result.data.city,
-      })
-      .select("*")
-      .single();
+    let siteId = "";
 
-    if (siteResult.error) {
-      setError("Kunde inte skapa arbetsplats.");
-      setIsSaving(false);
-      return false;
+    if (siteModeValue === "existing") {
+      const existingSiteId = getFormValue(formData, "existingSiteId");
+      const existingSite = sites.find(
+        (site) => site.id === existingSiteId && site.customer_id === customerId,
+      );
+
+      if (!existingSite) {
+        setError("Välj befintlig arbetsplats.");
+        setIsSaving(false);
+        return false;
+      }
+
+      siteId = existingSite.id;
+    } else {
+      const siteResult = customerRequestSchema
+        .pick({ address: true, city: true })
+        .safeParse({ address, city });
+
+      if (!siteResult.success) {
+        setError(
+          siteResult.error.issues[0]?.message ?? "Kontrollera arbetsplatsen.",
+        );
+        setIsSaving(false);
+        return false;
+      }
+
+      const insertSiteResult = await supabase
+        .from("sites")
+        .insert({
+          company_id: profile.company_id,
+          customer_id: customerId,
+          address: siteResult.data.address,
+          city: siteResult.data.city,
+        })
+        .select("*")
+        .single();
+
+      if (insertSiteResult.error) {
+        setError("Kunde inte skapa arbetsplats.");
+        setIsSaving(false);
+        return false;
+      }
+
+      siteId = insertSiteResult.data.id;
     }
 
     const workOrderResult = await supabase
       .from("work_orders")
       .insert({
         company_id: profile.company_id,
-        customer_id: customerResult.data.id,
-        site_id: siteResult.data.id,
-        title: result.data.title,
-        description: result.data.description,
+        customer_id: customerId,
+        site_id: siteId,
+        title,
+        description,
         status: "new",
-        priority: result.data.priority as WorkOrderPriority,
+        priority: priorityValue as WorkOrderPriority,
       })
       .select("*")
       .single();
@@ -355,11 +443,119 @@ export function CustomerWorkOrderFlow() {
             const wasCreated = await createRequest(new FormData(form));
             if (wasCreated) {
               form.reset();
+              setCustomerMode("new");
+              setSelectedCustomerId("");
+              setSiteMode("new");
+              setSelectedSiteId("");
             }
           }}
         >
           <h2 className="text-lg font-semibold text-ink">Nytt kundärende</h2>
           <div className="mt-4 space-y-4">
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">
+                Kundval
+              </span>
+              <select
+                className="mt-1 min-h-12 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                disabled={!canManage || isSaving}
+                name="customerMode"
+                onChange={(event) => {
+                  const nextMode =
+                    event.target.value === "existing" ? "existing" : "new";
+                  setCustomerMode(nextMode);
+                  setSelectedCustomerId("");
+                  setSelectedSiteId("");
+                  setSiteMode("new");
+                }}
+                value={customerMode}
+              >
+                <option value="new">Ny kund</option>
+                <option value="existing">Befintlig kund</option>
+              </select>
+            </label>
+
+            {customerMode === "existing" ? (
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">
+                  Befintlig kund
+                </span>
+                <select
+                  className="mt-1 min-h-12 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                  disabled={!canManage || isSaving}
+                  name="existingCustomerId"
+                  onChange={(event) => {
+                    setSelectedCustomerId(event.target.value);
+                    setSelectedSiteId("");
+                    setSiteMode("new");
+                  }}
+                  value={selectedCustomerId}
+                >
+                  <option value="">Välj kund</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.name}
+                      {customer.phone ? `, ${customer.phone}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+
+            {customerMode === "existing" && selectedCustomerId ? (
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">
+                  Arbetsplats
+                </span>
+                <select
+                  className="mt-1 min-h-12 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                  disabled={!canManage || isSaving}
+                  name="siteMode"
+                  onChange={(event) => {
+                    const nextMode =
+                      event.target.value === "existing" ? "existing" : "new";
+                    setSiteMode(nextMode);
+                    setSelectedSiteId("");
+                  }}
+                  value={siteMode}
+                >
+                  <option value="new">Ny arbetsplats</option>
+                  <option
+                    disabled={selectedCustomerSites.length === 0}
+                    value="existing"
+                  >
+                    Befintlig arbetsplats
+                  </option>
+                </select>
+              </label>
+            ) : null}
+
+            {customerMode === "existing" &&
+            selectedCustomerId &&
+            siteMode === "existing" ? (
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">
+                  Befintlig arbetsplats
+                </span>
+                <select
+                  className="mt-1 min-h-12 w-full rounded-lg border border-line px-3 text-base outline-none focus:border-action focus:ring-2 focus:ring-action/20"
+                  disabled={!canManage || isSaving}
+                  name="existingSiteId"
+                  onChange={(event) => setSelectedSiteId(event.target.value)}
+                  value={selectedSiteId}
+                >
+                  <option value="">Välj arbetsplats</option>
+                  {selectedCustomerSites.map((site) => (
+                    <option key={site.id} value={site.id}>
+                      {site.address}
+                      {site.city ? `, ${site.city}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {customerMode === "new" ? (
+              <>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Kund</span>
               <input
@@ -379,7 +575,11 @@ export function CustomerWorkOrderFlow() {
                 type="tel"
               />
             </label>
-            <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
+              </>
+            ) : null}
+            {customerMode === "new" ||
+            (selectedCustomerId && siteMode === "new") ? (
+              <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
               <label className="block">
                 <span className="text-sm font-medium text-slate-700">
                   Adress
@@ -401,6 +601,7 @@ export function CustomerWorkOrderFlow() {
                 />
               </label>
             </div>
+            ) : null}
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Rubrik</span>
               <input
