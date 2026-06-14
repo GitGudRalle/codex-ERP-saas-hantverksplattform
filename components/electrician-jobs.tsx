@@ -37,6 +37,26 @@ const allowedPhotoMimeTypes = new Set([
   "application/octet-stream",
 ]);
 
+type FieldJobFilter = "active" | "today" | "completed" | "all";
+
+const fieldJobFilters: { id: FieldJobFilter; label: string }[] = [
+  { id: "active", label: "Aktiva" },
+  { id: "today", label: "Idag" },
+  { id: "completed", label: "Klara" },
+  { id: "all", label: "Alla" },
+];
+
+const completedFieldStatuses = new Set<WorkOrderStatus>([
+  "completed",
+  "ready_for_invoice",
+  "invoiced",
+]);
+
+const inactiveFieldStatuses = new Set<WorkOrderStatus>([
+  ...completedFieldStatuses,
+  "cancelled",
+]);
+
 function formatScheduled(value: string | null) {
   if (!value) {
     return "Ej bokad";
@@ -47,6 +67,21 @@ function formatScheduled(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function isToday(value: string | null) {
+  if (!value) {
+    return false;
+  }
+
+  const date = new Date(value);
+  const now = new Date();
+
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  );
 }
 
 function getPhotoMimeType(file: File) {
@@ -179,6 +214,36 @@ export function ElectricianJobs() {
   const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
   const [savingPhotoId, setSavingPhotoId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [jobFilter, setJobFilter] = useState<FieldJobFilter>("active");
+
+  const filteredWorkOrders = useMemo(() => {
+    if (jobFilter === "all") {
+      return workOrders;
+    }
+
+    if (jobFilter === "today") {
+      return workOrders.filter((job) => isToday(job.scheduled_start));
+    }
+
+    if (jobFilter === "completed") {
+      return workOrders.filter((job) => completedFieldStatuses.has(job.status));
+    }
+
+    return workOrders.filter((job) => !inactiveFieldStatuses.has(job.status));
+  }, [jobFilter, workOrders]);
+
+  const jobFilterCounts = useMemo(
+    () => ({
+      active: workOrders.filter((job) => !inactiveFieldStatuses.has(job.status))
+        .length,
+      all: workOrders.length,
+      completed: workOrders.filter((job) =>
+        completedFieldStatuses.has(job.status),
+      ).length,
+      today: workOrders.filter((job) => isToday(job.scheduled_start)).length,
+    }),
+    [workOrders],
+  );
 
   const loadJobs = useCallback(async () => {
     setIsLoading(true);
@@ -651,6 +716,49 @@ export function ElectricianJobs() {
         </section>
       ) : null}
 
+      {!isLoading && workOrders.length > 0 ? (
+        <section className="rounded-lg border border-line bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-ink">Visa jobb</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Filtrera listan utan att lämna mobilvyn.
+              </p>
+            </div>
+            <span className="inline-flex min-h-8 items-center rounded-full border border-line px-3 text-sm font-medium text-slate-700">
+              {filteredWorkOrders.length} st
+            </span>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {fieldJobFilters.map((filter) => (
+              <button
+                className={`min-h-11 rounded-lg border px-3 text-sm font-semibold ${
+                  jobFilter === filter.id
+                    ? "border-action bg-action text-white"
+                    : "border-line bg-field text-ink hover:border-action"
+                }`}
+                key={filter.id}
+                onClick={() => setJobFilter(filter.id)}
+                type="button"
+              >
+                {filter.label} ({jobFilterCounts[filter.id]})
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {!isLoading && workOrders.length > 0 && filteredWorkOrders.length === 0 ? (
+        <section className="rounded-lg border border-line bg-white p-5">
+          <h2 className="text-lg font-semibold text-ink">
+            Inga jobb i filtret
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Välj ett annat filter för att se fler tilldelade arbetsordrar.
+          </p>
+        </section>
+      ) : null}
+
       <section className="grid gap-4">
         {isLoading
           ? Array.from({ length: 2 }).map((_, index) => (
@@ -659,7 +767,7 @@ export function ElectricianJobs() {
                 key={index}
               />
             ))
-          : workOrders.map((job) => {
+          : filteredWorkOrders.map((job) => {
               const customer = getCustomer(job.customer_id);
               const site = getSite(job.site_id);
               const jobTimeEntries = getTimeEntries(job.id);
