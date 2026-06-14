@@ -23,6 +23,21 @@ const invoiceDraftStatusLabels: Record<InvoiceDraftRow["status"], string> = {
   exported: "Exporterad",
 };
 
+type InvoiceReviewFilter =
+  | "all"
+  | "missing_time"
+  | "missing_material"
+  | "missing_documentation"
+  | "ready";
+
+const invoiceReviewFilters: { id: InvoiceReviewFilter; label: string }[] = [
+  { id: "all", label: "Alla" },
+  { id: "missing_time", label: "Saknar tid" },
+  { id: "missing_material", label: "Saknar material" },
+  { id: "missing_documentation", label: "Saknar dokumentation" },
+  { id: "ready", label: "Redo" },
+];
+
 function formatDate(value: string | null) {
   if (!value) {
     return "Ej satt";
@@ -103,6 +118,8 @@ export function InvoiceDraftFlow() {
   const [invoicingId, setInvoicingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reviewFilter, setReviewFilter] =
+    useState<InvoiceReviewFilter>("all");
 
   const canManage =
     profile?.role === "admin" || profile?.role === "manager";
@@ -433,6 +450,63 @@ export function InvoiceDraftFlow() {
     return invoiceDrafts.find((draft) => draft.work_order_id === workOrderId);
   }
 
+  function getReviewState(workOrder: WorkOrderRow) {
+    const jobTimeEntries = getTimeEntries(workOrder.id);
+    const jobMaterialEntries = getMaterialEntries(workOrder.id);
+    const jobNotes = getNotes(workOrder.id);
+    const jobPhotos = getPhotos(workOrder.id);
+    const existingDraft = getInvoiceDraft(workOrder.id);
+    const totalHours = jobTimeEntries.reduce(
+      (sum, entry) => sum + Number(entry.hours),
+      0,
+    );
+
+    return {
+      hasReadyDraft: existingDraft?.status === "ready",
+      missingDocumentation: jobNotes.length === 0 && jobPhotos.length === 0,
+      missingMaterial: jobMaterialEntries.length === 0,
+      missingTime: totalHours <= 0,
+    };
+  }
+
+  const reviewFilterCounts = {
+    all: readyWorkOrders.length,
+    missing_documentation: readyWorkOrders.filter(
+      (workOrder) => getReviewState(workOrder).missingDocumentation,
+    ).length,
+    missing_material: readyWorkOrders.filter(
+      (workOrder) => getReviewState(workOrder).missingMaterial,
+    ).length,
+    missing_time: readyWorkOrders.filter(
+      (workOrder) => getReviewState(workOrder).missingTime,
+    ).length,
+    ready: readyWorkOrders.filter(
+      (workOrder) => getReviewState(workOrder).hasReadyDraft,
+    ).length,
+  };
+
+  const filteredReadyWorkOrders = readyWorkOrders.filter((workOrder) => {
+    const reviewState = getReviewState(workOrder);
+
+    if (reviewFilter === "missing_time") {
+      return reviewState.missingTime;
+    }
+
+    if (reviewFilter === "missing_material") {
+      return reviewState.missingMaterial;
+    }
+
+    if (reviewFilter === "missing_documentation") {
+      return reviewState.missingDocumentation;
+    }
+
+    if (reviewFilter === "ready") {
+      return reviewState.hasReadyDraft;
+    }
+
+    return true;
+  });
+
   return (
     <div className="space-y-5">
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
@@ -481,7 +555,9 @@ export function InvoiceDraftFlow() {
             </p>
           </div>
           <span className="inline-flex min-h-8 items-center rounded-full border border-line px-3 text-sm font-medium text-slate-700">
-            {isLoading ? "Laddar" : `${readyWorkOrders.length} redo`}
+            {isLoading
+              ? "Laddar"
+              : `${filteredReadyWorkOrders.length} av ${readyWorkOrders.length}`}
           </span>
         </div>
 
@@ -512,11 +588,41 @@ export function InvoiceDraftFlow() {
           </div>
         </div>
 
+        {!isLoading && readyWorkOrders.length > 0 ? (
+          <div className="mt-4">
+            <p className="text-sm font-semibold text-ink">Filtrera granskning</p>
+            <div className="mt-2 grid grid-cols-2 gap-2 lg:grid-cols-5">
+              {invoiceReviewFilters.map((filter) => (
+                <button
+                  className={`min-h-11 rounded-lg border px-3 text-sm font-semibold ${
+                    reviewFilter === filter.id
+                      ? "border-action bg-action text-white"
+                      : "border-line bg-field text-ink hover:border-action"
+                  }`}
+                  key={filter.id}
+                  onClick={() => setReviewFilter(filter.id)}
+                  type="button"
+                >
+                  {filter.label} ({reviewFilterCounts[filter.id]})
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-4 space-y-4">
           {!isLoading && readyWorkOrders.length === 0 ? (
             <p className="rounded-lg border border-line bg-field px-3 py-3 text-sm text-slate-600">
               Inga arbetsordrar är klara för fakturering just nu. Markera ett
               klart jobb i arbetsordervyn först.
+            </p>
+          ) : null}
+
+          {!isLoading &&
+          readyWorkOrders.length > 0 &&
+          filteredReadyWorkOrders.length === 0 ? (
+            <p className="rounded-lg border border-line bg-field px-3 py-3 text-sm text-slate-600">
+              Inga arbetsordrar matchar filtret.
             </p>
           ) : null}
 
@@ -527,7 +633,7 @@ export function InvoiceDraftFlow() {
                   key={index}
                 />
               ))
-            : readyWorkOrders.map((workOrder) => {
+            : filteredReadyWorkOrders.map((workOrder) => {
                 const customer = getCustomer(workOrder.customer_id);
                 const site = getSite(workOrder.site_id);
                 const jobTimeEntries = getTimeEntries(workOrder.id);
