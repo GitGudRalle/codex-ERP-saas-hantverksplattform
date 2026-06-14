@@ -56,6 +56,37 @@ export function WorkOrderDetail({ workOrderId }: WorkOrderDetailProps) {
     (sum, entry) => sum + Number(entry.hours),
     0,
   );
+  const hasReportedTime = totalHours > 0;
+  const hasReportedMaterial = materialEntries.length > 0;
+  const hasDocumentation = notes.length > 0 || photos.length > 0;
+  const hasInvoiceDraft = Boolean(invoiceDraft);
+  const reviewItems = [
+    {
+      isComplete: hasReportedTime,
+      label: "Tid",
+      missingText: "Saknar rapporterad tid",
+      readyText: `${totalHours.toLocaleString("sv-SE")} h rapporterat`,
+    },
+    {
+      isComplete: hasReportedMaterial,
+      label: "Material",
+      missingText: "Inget material rapporterat",
+      readyText: `${materialEntries.length} materialrader`,
+    },
+    {
+      isComplete: hasDocumentation,
+      label: "Dokumentation",
+      missingText: "Saknar anteckning eller foto",
+      readyText: `${notes.length} anteckningar, ${photos.length} foton`,
+    },
+    {
+      isComplete: hasInvoiceDraft,
+      label: "Fakturaunderlag",
+      missingText: "Inte sparat ännu",
+      readyText: "Sparat",
+    },
+  ];
+  const missingReviewItems = reviewItems.filter((item) => !item.isComplete).length;
 
   const loadDetail = useCallback(async () => {
     setIsLoading(true);
@@ -320,6 +351,61 @@ export function WorkOrderDetail({ workOrderId }: WorkOrderDetailProps) {
           </div>
         </article>
       </section>
+
+      {canManage ? (
+        <section className="rounded-lg border border-line bg-white p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">
+                Granskning inför fakturering
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Snabb kontroll av det som brukar saknas innan fakturan kan
+                skapas.
+              </p>
+            </div>
+            <span className="inline-flex min-h-8 items-center rounded-full border border-line px-3 text-sm font-medium text-slate-700">
+              {missingReviewItems === 0
+                ? "Allt finns"
+                : `${missingReviewItems} kvar`}
+            </span>
+          </div>
+
+          <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {reviewItems.map((item) => (
+              <li
+                className={`rounded-lg border px-3 py-3 ${
+                  item.isComplete
+                    ? "border-emerald-200 bg-emerald-50"
+                    : "border-amber-200 bg-amber-50"
+                }`}
+                key={item.label}
+              >
+                <p
+                  className={`text-sm font-semibold ${
+                    item.isComplete ? "text-emerald-950" : "text-amber-950"
+                  }`}
+                >
+                  {item.label}
+                </p>
+                <p
+                  className={`mt-1 text-sm ${
+                    item.isComplete ? "text-emerald-800" : "text-amber-800"
+                  }`}
+                >
+                  {item.isComplete ? item.readyText : item.missingText}
+                </p>
+              </li>
+            ))}
+          </ul>
+
+          {missingReviewItems === 0 && workOrder.status === "ready_for_invoice" ? (
+            <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">
+              Arbetsordern är redo att användas som fakturaunderlag.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="grid gap-4 lg:grid-cols-3">
         <article className="rounded-lg border border-line bg-white p-5">
