@@ -689,6 +689,82 @@ export function ElectricianJobs() {
                     </div>
 
                     <section className="rounded-lg border border-line bg-field p-3">
+                      <p className="text-sm font-medium text-slate-500">
+                        Arbetsorder
+                      </p>
+                      <h2 className="mt-1 text-xl font-semibold text-ink">
+                        {job.title}
+                      </h2>
+                      <p className="mt-2 text-sm leading-6 text-slate-700">
+                        {job.description}
+                      </p>
+
+                      <div className="mt-3 rounded-lg border border-line bg-white p-3">
+                        <p className="text-base font-semibold text-ink">
+                          {customer?.name ?? "Kund saknas"}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {site?.address}, {site?.city}
+                        </p>
+                        {site?.access_notes ? (
+                          <p className="mt-2 text-sm text-slate-700">
+                            {site.access_notes}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <a
+                          className="flex min-h-12 items-center justify-center rounded-lg bg-action px-3 text-center text-sm font-semibold text-white"
+                          href={customer?.phone ? `tel:${customer.phone}` : undefined}
+                        >
+                          Ring kund
+                        </a>
+                        <a
+                          className="flex min-h-12 items-center justify-center rounded-lg border border-line bg-white px-3 text-center text-sm font-semibold text-ink"
+                          href={mapsUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          Öppna karta
+                        </a>
+                        <Link
+                          className="flex min-h-12 items-center justify-center rounded-lg border border-line bg-white px-3 text-center text-sm font-semibold text-ink"
+                          href={`/work-orders/${job.id}`}
+                        >
+                          Detalj
+                        </Link>
+                        <div className="flex min-h-12 items-center justify-center rounded-lg border border-line bg-white px-3 text-center text-sm font-semibold text-ink">
+                          {totalHours.toLocaleString("sv-SE")} h ·{" "}
+                          {jobMaterialEntries.length} material
+                        </div>
+                      </div>
+
+                      <div className="mt-3">
+                        <p className="text-sm font-semibold text-ink">
+                          Ändra status
+                        </p>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                          {nextFieldStatuses.map((status) => (
+                            <button
+                              className={`min-h-12 rounded-lg border px-3 text-sm font-semibold ${
+                                job.status === status
+                                  ? "border-action bg-action text-white"
+                                  : "border-line bg-white text-ink hover:border-action"
+                              }`}
+                              disabled={updatingId === job.id}
+                              key={status}
+                              onClick={() => updateStatus(job.id, status)}
+                              type="button"
+                            >
+                              {workOrderStatusLabels[status]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="rounded-lg border border-line bg-field p-3">
                       <div className="flex items-center justify-between gap-3">
                         <h3 className="text-sm font-semibold text-ink">
                           Anteckningar
@@ -845,61 +921,6 @@ export function ElectricianJobs() {
                         </div>
                       ) : null}
                     </section>
-
-                    <div>
-                      <p className="text-sm font-medium text-slate-500">
-                        Arbetsorder
-                      </p>
-                      <h2 className="mt-1 text-xl font-semibold text-ink">
-                        {job.title}
-                      </h2>
-                      <p className="mt-2 text-sm leading-6 text-slate-700">
-                        {job.description}
-                      </p>
-                      <Link
-                        className="mt-3 inline-flex min-h-10 items-center rounded-lg border border-line bg-white px-3 text-sm font-semibold text-ink hover:border-action"
-                        href={`/work-orders/${job.id}`}
-                      >
-                        Öppna detalj
-                      </Link>
-                    </div>
-
-                    <div className="rounded-lg border border-line bg-field p-3">
-                      <p className="text-base font-semibold text-ink">
-                        {customer?.name ?? "Kund saknas"}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {site?.address}, {site?.city}
-                      </p>
-                      {site?.access_notes ? (
-                        <p className="mt-2 text-sm text-slate-700">
-                          {site.access_notes}
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      <a
-                        className="flex min-h-12 items-center justify-center rounded-lg bg-action px-3 text-center text-sm font-semibold text-white"
-                        href={`tel:${customer?.phone ?? ""}`}
-                      >
-                        Ring kund
-                      </a>
-                      <a
-                        className="flex min-h-12 items-center justify-center rounded-lg border border-line bg-field px-3 text-center text-sm font-semibold text-ink"
-                        href={mapsUrl}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        Öppna karta
-                      </a>
-                      <div className="flex min-h-12 items-center justify-center rounded-lg border border-line bg-field px-3 text-center text-sm font-semibold text-ink">
-                        {totalHours.toLocaleString("sv-SE")} h
-                      </div>
-                      <div className="flex min-h-12 items-center justify-center rounded-lg border border-line bg-field px-3 text-center text-sm font-semibold text-ink">
-                        {jobMaterialEntries.length} material
-                      </div>
-                    </div>
 
                     <div className="grid gap-3 lg:grid-cols-2">
                       <section className="rounded-lg border border-line bg-field p-3">
@@ -1098,28 +1119,6 @@ export function ElectricianJobs() {
                       </section>
                     </div>
 
-                    <div>
-                      <p className="text-sm font-semibold text-ink">
-                        Ändra status
-                      </p>
-                      <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                        {nextFieldStatuses.map((status) => (
-                          <button
-                            className={`min-h-12 rounded-lg border px-3 text-sm font-semibold ${
-                              job.status === status
-                                ? "border-action bg-action text-white"
-                                : "border-line bg-field text-ink hover:border-action"
-                            }`}
-                            disabled={updatingId === job.id}
-                            key={status}
-                            onClick={() => updateStatus(job.id, status)}
-                            type="button"
-                          >
-                            {workOrderStatusLabels[status]}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 </article>
               );

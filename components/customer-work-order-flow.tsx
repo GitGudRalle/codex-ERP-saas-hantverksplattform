@@ -75,6 +75,11 @@ export function CustomerWorkOrderFlow() {
     [selectedCustomerId, sites],
   );
 
+  const createButtonLabel =
+    customerMode === "existing"
+      ? "Skapa arbetsorder"
+      : "Skapa kund och arbetsorder";
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -333,7 +338,9 @@ export function CustomerWorkOrderFlow() {
       return false;
     }
 
-    setMessage(`Skapade arbetsorder ${workOrderResult.data.title}.`);
+    setMessage(
+      `Skapade arbetsorder ${workOrderResult.data.title}. Nästa steg: tilldela den till en montör.`,
+    );
     setIsSaving(false);
     await loadData();
     return true;
@@ -651,7 +658,7 @@ export function CustomerWorkOrderFlow() {
             className="mt-5 min-h-12 w-full rounded-lg bg-action px-4 text-base font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={!canManage || isSaving}
           >
-            {isSaving ? "Sparar" : "Skapa kund och arbetsorder"}
+            {isSaving ? "Sparar" : createButtonLabel}
           </button>
         </form>
 
