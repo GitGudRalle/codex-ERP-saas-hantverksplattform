@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
 import { WorkOrderPhotoGallery } from "@/components/work-order-photo-gallery";
-import { priorityLabels, type WorkOrderPriority } from "@/lib/domain";
+import {
+  priorityLabels,
+  workOrderStatusLabels,
+  type WorkOrderPriority,
+  type WorkOrderStatus,
+} from "@/lib/domain";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   CustomerRow,
@@ -17,6 +22,15 @@ import type {
   WorkOrderRow,
 } from "@/lib/supabase/types";
 import { customerRequestSchema } from "@/lib/validation";
+
+const pipelineStatuses: WorkOrderStatus[] = [
+  "new",
+  "assigned",
+  "on_the_way",
+  "in_progress",
+  "completed",
+  "ready_for_invoice",
+];
 
 function getFormValue(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -56,6 +70,9 @@ export function CustomerWorkOrderFlow() {
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [siteMode, setSiteMode] = useState<"new" | "existing">("new");
   const [selectedSiteId, setSelectedSiteId] = useState("");
+  const [workOrderStatusFilter, setWorkOrderStatusFilter] = useState<
+    WorkOrderStatus | "all"
+  >("all");
 
   const canManage =
     profile?.role === "admin" || profile?.role === "manager";
@@ -69,6 +86,38 @@ export function CustomerWorkOrderFlow() {
     () => workOrders.filter((workOrder) => workOrder.status === "completed"),
     [workOrders],
   );
+
+  const filteredWorkOrders = useMemo(
+    () =>
+      workOrderStatusFilter === "all"
+        ? workOrders
+        : workOrders.filter(
+            (workOrder) => workOrder.status === workOrderStatusFilter,
+          ),
+    [workOrderStatusFilter, workOrders],
+  );
+
+  const workOrderStatusCounts = useMemo(() => {
+    return workOrders.reduce<Record<WorkOrderStatus, number>>(
+      (counts, workOrder) => {
+        counts[workOrder.status] += 1;
+        return counts;
+      },
+      {
+        assigned: 0,
+        cancelled: 0,
+        completed: 0,
+        in_progress: 0,
+        invoiced: 0,
+        new: 0,
+        on_the_way: 0,
+        ready_for_invoice: 0,
+        scheduled: 0,
+        waiting_for_customer: 0,
+        waiting_for_material: 0,
+      },
+    );
+  }, [workOrders]);
 
   const selectedCustomerSites = useMemo(
     () => sites.filter((site) => site.customer_id === selectedCustomerId),
@@ -867,9 +916,55 @@ export function CustomerWorkOrderFlow() {
           ) : null}
 
           <section className="rounded-lg border border-line bg-white p-5">
-            <h2 className="text-lg font-semibold text-ink">Arbetsordrar</h2>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-ink">
+                  Arbetsordrar
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Filtrera efter status för att snabbt se nästa åtgärd.
+                </p>
+              </div>
+              <span className="inline-flex min-h-8 items-center rounded-full border border-line px-3 text-sm font-medium text-slate-700">
+                {filteredWorkOrders.length} visas
+              </span>
+            </div>
+
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+              <button
+                className={`min-h-10 shrink-0 rounded-lg border px-3 text-sm font-semibold ${
+                  workOrderStatusFilter === "all"
+                    ? "border-action bg-action text-white"
+                    : "border-line bg-field text-ink"
+                }`}
+                onClick={() => setWorkOrderStatusFilter("all")}
+                type="button"
+              >
+                Alla {workOrders.length}
+              </button>
+              {pipelineStatuses.map((status) => (
+                <button
+                  className={`min-h-10 shrink-0 rounded-lg border px-3 text-sm font-semibold ${
+                    workOrderStatusFilter === status
+                      ? "border-action bg-action text-white"
+                      : "border-line bg-field text-ink"
+                  }`}
+                  key={status}
+                  onClick={() => setWorkOrderStatusFilter(status)}
+                  type="button"
+                >
+                  {workOrderStatusLabels[status]} {workOrderStatusCounts[status]}
+                </button>
+              ))}
+            </div>
+
             <div className="mt-4 space-y-3">
-              {workOrders.map((workOrder) => {
+              {filteredWorkOrders.length === 0 ? (
+                <p className="rounded-lg border border-line bg-field px-3 py-3 text-sm text-slate-600">
+                  Inga arbetsordrar matchar filtret.
+                </p>
+              ) : (
+                filteredWorkOrders.map((workOrder) => {
                 const customer = getCustomer(workOrder.customer_id);
                 const site = getSite(workOrder.site_id);
                 const electrician = getElectrician(workOrder.assigned_to);
@@ -926,7 +1021,8 @@ export function CustomerWorkOrderFlow() {
                     </div>
                   </article>
                 );
-              })}
+                })
+              )}
             </div>
           </section>
         </div>
